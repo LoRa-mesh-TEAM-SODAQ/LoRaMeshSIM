@@ -38,48 +38,51 @@ class myNode():
         # graphics for node
         global graphics
         if (graphics == 1):
-            self.graphic = plt.Circle((self.x, self.y), 2, fill=True, color='blue')
+            self.graphic = plt.Circle(
+                (self.x, self.y), 2, fill=True, color='blue')
 
-        self.packetList.append(myPacket(random.randint(1, 51),\
-                                        random.randint(7, 12),\
-                                        4/5,\
-                                        random.choice(BW),\
-                                        0,\
+        self.packetList.append(myPacket(random.randint(1, 51),
+                                        random.randint(7, 12),
+                                        1,
+                                        random.choice(BW),
+                                        0,
                                         0))
 
     def printInfo(self):
-        print("NodeID", self.nodeid)
-        print("node x: ", self.x)
-        print("node y: ", self.y)
-        print("Distances: ", end = "")
-        print(*self.distanceList, sep = ", ")
-
+        print("NodeID:", self.nodeid)
+        print("node x:", self.x)
+        print("node y:", self.y)
+        print("Distances:", end="")
+        print(*self.distanceList, sep=", ")
 
     def calcDist(self, nodes):
         for i in range(len(nodes)):
             if nodes[i].nodeid != self.nodeid:
-                nodeDist=[]
-                xdist=self.x - nodes[i].x
-                ydist=self.y - nodes[i].y
+                nodeDist = []
+                xdist = self.x - nodes[i].x
+                ydist = self.y - nodes[i].y
                 nodeDist.append(nodes[i].nodeid)
                 nodeDist.append(np.sqrt(xdist * xdist + ydist * ydist))
                 self.distanceList.append(nodeDist)
 
     def sendPacket(self):
         self.packetList[0].printInfo()
-        bitRate = self.packetList[0].calcBitRate()
+        bitRate = min(DR, key=lambda x:abs(x-self.packetList[0].calcBitRate()))
         Npayload = self.packetList[0].calcPayload()
-        print("Bitrate of packet (bits/s): ", bitRate)
-        print("Payload of packet (bytes): ", Npayload)
+        print("Bitrate of packet (bits/s):", bitRate, "DR", DR.index(bitRate))
+        print("Payload of packet (bytes):", Npayload)
 
     def calcTOA(self, packet):
+        # Calculate time to send a single symbol
         Tsymbol = (2**packet.SF) / packet.BW
+        # Calculate time for preamble and payload
         Tpreamble = (4.25 + packet.Npreamble) * Tsymbol
         Tpayload = packet.Npayload * Tsymbol
         TOA = Tpayload + Tpreamble
-        print("Time on air for packet number ", self.packetList.index(packet), ": ", TOA)
+        print("Tsymbol:", Tsymbol)
+        print("Time on air for packet number",
+              self.packetList.index(packet), ":", TOA)
         print()
-
 
 
 class myGateway():
@@ -89,42 +92,53 @@ class myGateway():
         self.numberOfHops = 0
         self.distanceList = []
 
+
 class myPacket():
     def __init__(self, packetLength, spreadingFactor, codingRate, bandwidth, header, lowDataRateOpt):
+        #
         self.PL = packetLength
         self.SF = spreadingFactor
         self.CR = codingRate
         self.BW = bandwidth
+        # Standard preamble for EU 863-870 MHz ISM Band
+        # (source https://lora-alliance.org/sites/default/files/2018-05/2015_-_lorawan_specification_1r0_611_1.pdf#page=34)
         self.Npreamble = 8
         self.header = header
         self.lowDataRateOpt = lowDataRateOpt
 
+        # Override SF to 7 when using the 250 kHz bandwith
+        if self.BW == 250000:
+            self.SF = 7
+
     def printInfo(self):
-        print("PL: ", self.PL)
-        print("SF: ", self.SF)
-        print("CR: ", self.CR)
-        print("BW: ", self.BW)
+        print("PL:", self.PL)
+        print("SF:", self.SF)
+        print("CR:", self.CR)
+        print("BW:", self.BW)
 
     def calcBitRate(self):
-        self.bitRate = self.SF * ((self.BW / (2**self.SF)) * self.CR)
+        self.bitRate = round(
+            self.SF * (self.BW / (2**self.SF)) * (4 / (4 + self.CR)))
         return self.bitRate
 
     def calcPayload(self):
-        thetaPLSF = 8 * self.PL - 4 * self.SF + 16 + 28 - 20 * self.header
-        gammaSF = self.SF - 2 * self.lowDataRateOpt
-        self.Npayload = 8 + max(math.ceil(thetaPLSF/gammaSF)*(1/self.CR), 0)
+        thetaPLSF = (8 * self.PL) - (4 * self.SF) + 44 - (20 * self.header)
+        gammaSF = 4 * (self.SF - (2 * self.lowDataRateOpt))
+        self.Npayload = (
+            8 + max(math.ceil(thetaPLSF / gammaSF) * (self.CR + 4), 0))
         return self.Npayload
 
 
 # 1 to show nodes in plot
-graphics=1
+graphics = 1
 
 # list for all nodes
-nodes=[]
+nodes = []
 
 # list for available bandwidths
-#BW = [7.8, 10.4, 15.6, 20.8, 31.2, 41.7, 62.5, 125, 250, 500]
-BW = [125000]
+BW = [125000, 250000]
+# list with datarates from lora specifications EU 868-870 MHz ISM band
+DR = [250, 440, 980, 1790, 3125, 5470, 11000]
 
 # compute energy
 # Transmit consumption in mA from -2 to +17 dBm
@@ -137,9 +151,9 @@ V = 3.0     # voltage XXX
 
 # get arguments
 if len(sys.argv) >= 3:
-    nrNodes=int(sys.argv[1])
-    TXpowerArg=int(sys.argv[2])
-    carrierFrequency=int(sys.argv[3])
+    nrNodes = int(sys.argv[1])
+    TXpowerArg = int(sys.argv[2])
+    carrierFrequency = int(sys.argv[3])
 
     print("Number of nodes: ", nrNodes)
     print("TXpower: ", TXpowerArg)
@@ -152,7 +166,7 @@ else:
 # Create nodes with avgSendTime and PacketLength
 # and add new nodes to nodes list
 for i in range(0, nrNodes):
-    node=myNode(i, TXpowerArg, carrierFrequency)
+    node = myNode(i, TXpowerArg, carrierFrequency)
     nodes.append(node)
 
 # Calculate distance between nodes and print node info of all nodes
@@ -164,7 +178,7 @@ for i in range(len(nodes)):
 
 # prepare show
 if (graphics == 1):
-    fig, ax=plt.subplots()
+    fig, ax = plt.subplots()
     ax.set_xlim((0, 500))
     ax.set_ylim((0, 500))
     for i in range(len(nodes)):
