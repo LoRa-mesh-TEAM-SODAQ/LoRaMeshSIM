@@ -7,4 +7,4 @@ There is a few files in the lorasim folder, these are from the Lorasim website:<
 [lorasim website](https://www.lancaster.ac.uk/scc/sites/lora/lorasim.html)<br/>
 These files can be used as reference for future additions to our own simulation.
 
-![]https://github.com/LoRa-mesh-TEAM-SODAQ/LoRaMeshSIM/blob/main/Doc/LoRasimulatieUMLdiagram.png
+![]https://github.com/LoRa-mesh-TEAM-SODAQ/LoRaMeshSIM/Doc/LoRasimulatieUMLdiagram.png
