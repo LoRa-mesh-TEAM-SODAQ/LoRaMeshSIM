@@ -67,10 +67,10 @@ class myNode():
 
     def sendPacket(self):
         self.packetList[0].printInfo()
-        bitRate = min(DR, key=lambda x:abs(x-self.packetList[0].calcBitRate()))
-        Npayload = self.packetList[0].calcPayload()
+        bitRate = min(DR, key=lambda x: abs(x - self.packetList[0].bitRate))
+        Npayload = self.packetList[0].Npayload
         print("Bitrate of packet (bits/s):", bitRate, "DR", DR.index(bitRate))
-        print("Payload of packet (bytes):", Npayload)
+        print("Nr of symbols packet (bytes):", Npayload)
 
     def calcTOA(self, packet):
         # Calculate time to send a single symbol
@@ -95,7 +95,6 @@ class myGateway():
 
 class myPacket():
     def __init__(self, packetLength, spreadingFactor, codingRate, bandwidth, header, lowDataRateOpt):
-        #
         self.PL = packetLength
         self.SF = spreadingFactor
         self.CR = codingRate
@@ -110,23 +109,31 @@ class myPacket():
         if self.BW == 250000:
             self.SF = 7
 
+        self.bitRate = round(min(DR, key=lambda x: abs(
+            x - self.SF * (self.BW / (2**self.SF)) * (4 / (4 + self.CR)))))
+
+        if DR.index(self.bitRate) == 0 or\
+                DR.index(self.bitRate) == 1 or\
+                DR.index(self.bitRate) == 2:
+            self.PL = random.randint(1, 59)
+        elif DR.index(self.bitRate) == 4 or\
+                DR.index(self.bitRate) == 5 or\
+                DR.index(self.bitRate) == 6 or\
+                DR.index(self.bitRate) == 7:
+            self.PL = random.randint(1, 115)
+        else:
+            self.PL = random.randint(1, 222)
+
+        thetaPLSF = (8 * self.PL) - (4 * self.SF) + 44 - (20 * self.header)
+        gammaSF = 4 * (self.SF - (2 * self.lowDataRateOpt))
+        self.Npayload = (
+            8 + max(math.ceil(thetaPLSF / gammaSF) * (self.CR + 4), 0))
+
     def printInfo(self):
         print("PL:", self.PL)
         print("SF:", self.SF)
         print("CR:", self.CR)
         print("BW:", self.BW)
-
-    def calcBitRate(self):
-        self.bitRate = round(
-            self.SF * (self.BW / (2**self.SF)) * (4 / (4 + self.CR)))
-        return self.bitRate
-
-    def calcPayload(self):
-        thetaPLSF = (8 * self.PL) - (4 * self.SF) + 44 - (20 * self.header)
-        gammaSF = 4 * (self.SF - (2 * self.lowDataRateOpt))
-        self.Npayload = (
-            8 + max(math.ceil(thetaPLSF / gammaSF) * (self.CR + 4), 0))
-        return self.Npayload
 
 
 # 1 to show nodes in plot
