@@ -88,9 +88,17 @@ class myNode():
 class myGateway():
     def __init__(self, gateID):
         self.gateID = gateID
+        self.x = 250
+        self.y = 250
         self.receivedPackets = 0
         self.numberOfHops = 0
         self.distanceList = []
+
+        if (graphics == 1):
+            self.graphic = plt.Circle(
+                (self.x, self.y), 5, fill=True, color='green')
+
+
 
 
 class myPacket():
@@ -170,6 +178,8 @@ else:
     print("usage: ./loraDir <amount of nodes> <TXpower> <carrierFrequency>")
     sys.exit(-1)
 
+
+
 # Create nodes with avgSendTime and PacketLength
 # and add new nodes to nodes list
 for i in range(0, nrNodes):
@@ -183,6 +193,8 @@ for i in range(len(nodes)):
     nodes[i].sendPacket()
     nodes[i].calcTOA(nodes[i].packetList[0])
 
+GW = myGateway(0)
+
 # prepare show
 if (graphics == 1):
     fig, ax = plt.subplots()
@@ -190,4 +202,5 @@ if (graphics == 1):
     ax.set_ylim((0, 500))
     for i in range(len(nodes)):
         plt.gcf().gca().add_artist(nodes[i].graphic)
+    plt.gcf().gca().add_artist(GW.graphic)
     plt.show()
