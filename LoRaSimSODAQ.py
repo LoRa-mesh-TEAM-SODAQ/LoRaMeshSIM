@@ -16,11 +16,17 @@ import os
 global ax
 global nodes
 
+def onclick(event):
+    #print('%s click: button=%d, x=%d, y=%d, xdata=%f, ydata=%f' %
+    #      ('double' if event.dblclick else 'single', event.button,
+    #       event.x, event.y, event.xdata, event.ydata))
+    for i in range(len(nodes)):
+        if round(event.xdata) >= nodes[i].x-1 and round(event.xdata) <= nodes[i].x+1:
+            nodes[i].printInfo()
+
 #
 # this function creates a node
 #
-
-
 class myNode():
     def __init__(self, nodeid, TXp, CF):
         self.nodeid = nodeid
@@ -58,12 +64,13 @@ class myNode():
     def calcDist(self, nodes):
         for i in range(len(nodes)):
             if nodes[i].nodeid != self.nodeid:
-                nodeDist = []
                 xdist = self.x - nodes[i].x
                 ydist = self.y - nodes[i].y
-                nodeDist.append(nodes[i].nodeid)
-                nodeDist.append(np.sqrt(xdist * xdist + ydist * ydist))
-                self.distanceList.append(nodeDist)
+                dist = np.sqrt(xdist * xdist + ydist * ydist)
+                if dist < 200:
+                    dict = {'id': nodes[i].nodeid,  'dist' : dist, 'x':  nodes[i].x, 'y' : nodes[i].y}
+                    self.distanceList.append(dict)
+        self.distanceList = sorted(self.distanceList, key = lambda i: i['dist'])
 
     def sendPacket(self):
         self.packetList[0].printInfo()
@@ -195,6 +202,16 @@ for i in range(len(nodes)):
 
 GW = myGateway(0)
 
+ypoints = []
+xpoints = []
+
+for i in range(len(nodes)):
+    for j in range(len(nodes[i].distanceList)):
+        xpoints.append(nodes[i].distanceList[j]['x'])
+        ypoints.append(nodes[i].distanceList[j]['y'])
+        #xpoints.append()
+
+
 # prepare show
 if (graphics == 1):
     fig, ax = plt.subplots()
@@ -202,5 +219,12 @@ if (graphics == 1):
     ax.set_ylim((0, 500))
     for i in range(len(nodes)):
         plt.gcf().gca().add_artist(nodes[i].graphic)
+        #ypoints.append(nodes[i].y)
+        #xpoints.append(nodes[i].x)
+        #plt.plot(nodes[i].x, nodes[i].y, nodes[nodes[i].distanceList[0][0]].x, nodes[nodes[i].distanceList[0][0]].y)
+        #plt.setp(line, color='r', linewidth=2.0)
+        #plt.gcf().gca().add_artist(line)
     plt.gcf().gca().add_artist(GW.graphic)
+    plt.plot(np.array(xpoints), np.array(ypoints), color='r')
+    cid = fig.canvas.mpl_connect('button_press_event', onclick)
     plt.show()
