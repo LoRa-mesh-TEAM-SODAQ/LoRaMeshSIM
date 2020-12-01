@@ -72,6 +72,16 @@ class myNode():
                     self.distanceList.append(dict)
         self.distanceList = sorted(self.distanceList, key = lambda i: i['dist'])
 
+    def calcDistToGW(self, gateway):
+        xdist = self.x - gateway.x
+        ydist = self.y - gateway.y
+        dist = np.sqrt(xdist * xdist + ydist * ydist)
+        print("GW dist", dist)
+        if dist < 200:
+            dict = {'id': 'G'+str(gateway.gateID),  'dist' : dist, 'x':  gateway.x, 'y' : gateway.y}
+            self.distanceList.append(dict)
+        self.distanceList = sorted(self.distanceList, key = lambda i: i['dist'])
+
     def sendPacket(self):
         self.packetList[0].printInfo()
         bitRate = min(DR, key=lambda x: abs(x - self.packetList[0].bitRate))
@@ -105,7 +115,23 @@ class myGateway():
             self.graphic = plt.Circle(
                 (self.x, self.y), 5, fill=True, color='green')
 
+    def sendBeacon(self):
+        # Beacon SF, CR, BW need to be determined
+        beacon = myBeacon(34, )
+        #
 
+
+
+class myBeacon():
+    def __init__(self, packetLength, spreadingFactor, codingRate, bandwidth, header, lowDataRateOpt):
+        self.PL = packetLength
+        self.SF = spreadingFactor
+        self.CR = codingRate
+        self.BW = bandwidth
+        # Standard preamble for EU 863-870 MHz ISM Band
+        # (source https://lora-alliance.org/sites/default/files/2018-05/2015_-_lorawan_specification_1r0_611_1.pdf#page=34)
+        self.Npreamble = 10
+        self.numberOfHops = 0
 
 
 class myPacket():
@@ -180,12 +206,11 @@ if len(sys.argv) >= 3:
     print("Number of nodes: ", nrNodes)
     print("TXpower: ", TXpowerArg)
     print("CarrierFrequency: ", carrierFrequency)
-
 else:
     print("usage: ./loraDir <amount of nodes> <TXpower> <carrierFrequency>")
     sys.exit(-1)
 
-
+GW = myGateway(0)
 
 # Create nodes with avgSendTime and PacketLength
 # and add new nodes to nodes list
@@ -193,24 +218,33 @@ for i in range(0, nrNodes):
     node = myNode(i, TXpowerArg, carrierFrequency)
     nodes.append(node)
 
-# Calculate distance between nodes and print node info of all nodes
-for i in range(len(nodes)):
-    nodes[i].calcDist(nodes)
-    nodes[i].printInfo()
-    nodes[i].sendPacket()
-    nodes[i].calcTOA(nodes[i].packetList[0])
-
-GW = myGateway(0)
-
 ypoints = []
 xpoints = []
 
+# Calculate distance between nodes and print node info of all nodes
 for i in range(len(nodes)):
-    for j in range(len(nodes[i].distanceList)):
-        xpoints.append(nodes[i].distanceList[j]['x'])
-        ypoints.append(nodes[i].distanceList[j]['y'])
-        #xpoints.append()
+    nodes[i].calcDistToGW(GW)
+    nodes[i].calcDist(nodes)
 
+    nodes[i].printInfo()
+    nodes[i].sendPacket()
+    nodes[i].calcTOA(nodes[i].packetList[0])
+    """xpointspernode = []
+    ypointspernode = []
+    plottedlines = []
+    for j in range(len(nodes[i].distanceList)):
+        if nodes[i].distanceList[j]['id'] not in plottedlines:
+            #xpointspernode.append(nodes[i].x)
+            #ypointspernode.append(nodes[i].y)
+            xpointspernode.append(nodes[i].distanceList[j]['x'])
+            ypointspernode.append(nodes[i].distanceList[j]['y'])
+            plottedlines.append(nodes[i].distanceList[j]['id'])
+    xpoints.append(xpointspernode)
+    ypoints.append(ypointspernode)"""
+
+
+print(xpoints)
+print(ypoints)
 
 # prepare show
 if (graphics == 1):
@@ -219,12 +253,8 @@ if (graphics == 1):
     ax.set_ylim((0, 500))
     for i in range(len(nodes)):
         plt.gcf().gca().add_artist(nodes[i].graphic)
-        #ypoints.append(nodes[i].y)
-        #xpoints.append(nodes[i].x)
-        #plt.plot(nodes[i].x, nodes[i].y, nodes[nodes[i].distanceList[0][0]].x, nodes[nodes[i].distanceList[0][0]].y)
-        #plt.setp(line, color='r', linewidth=2.0)
-        #plt.gcf().gca().add_artist(line)
     plt.gcf().gca().add_artist(GW.graphic)
-    plt.plot(np.array(xpoints), np.array(ypoints), color='r')
+    for i in range(len(xpoints)):
+        plt.plot(np.array(xpoints[i]), np.array(ypoints[i]), 'r--')
     cid = fig.canvas.mpl_connect('button_press_event', onclick)
     plt.show()
