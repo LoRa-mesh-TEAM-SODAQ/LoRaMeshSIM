@@ -110,20 +110,56 @@ class myGateway():
         self.receivedPackets = 0
         self.numberOfHops = 0
         self.distanceList = []
+        self.TXpower = 14
 
         if (graphics == 1):
             self.graphic = plt.Circle(
                 (self.x, self.y), 5, fill=True, color='green')
 
     def sendBeacon(self):
-        # Beacon SF, CR, BW need to be determined
-        beacon = myBeacon(34, )
-        #
+        # Beacon SF, CR, BW need to be determined according to lora specifications
+        beacon = myBeacon(34,
+                          random.randint(7, 12),
+                          1,
+                          BW[0])
+        self.calcTOA(beacon)
+        RXsensi = -174 + 10*log(BW) + 4 SNRvals.index(beacon.SF-7)
+        for i in range(len(nodes)):
+            # calc freespaceloss according to distance
+            """
+            The path loss is usually represented as follows:
 
+            FSPL = (4πdf/λ)2 = (λ/c)2 (1)
+
+            ...means..:
+
+            FSPL = Free Space Path Loss
+            d = distance between Tx and Rx in metres
+            f = frequency in Hertz
+
+            There is also a widely used logarithmic calculation formula for free space damping:
+
+            FSPL (dB) = 20log10(d) + 20log10(f) - 147,55 (2)
+            """
+
+            nodes[i].calcFreeSpaceLoss()
+            RSSI = nodes[i].calcRSSI()
+
+
+    def calcTOA(self, beacon):
+        # Calculate time to send a single symbol
+        Tsymbol = (2**beacon.SF) / beacon.BW
+        # Calculate time for preamble and payload
+        Tpreamble = (4.25 + beacon.Npreamble) * Tsymbol
+        Tpayload = beacon.Npayload * Tsymbol
+        TOA = Tpayload + Tpreamble
+        print("Tsymbol:", Tsymbol)
+        print("Time on air for beacon:", TOA)
+        print()
 
 
 class myBeacon():
-    def __init__(self, packetLength, spreadingFactor, codingRate, bandwidth, header, lowDataRateOpt):
+    def __init__(self, packetLength, spreadingFactor, codingRate, bandwidth):
         self.PL = packetLength
         self.SF = spreadingFactor
         self.CR = codingRate
@@ -132,6 +168,11 @@ class myBeacon():
         # (source https://lora-alliance.org/sites/default/files/2018-05/2015_-_lorawan_specification_1r0_611_1.pdf#page=34)
         self.Npreamble = 10
         self.numberOfHops = 0
+
+        thetaPLSF = (8 * self.PL) - (4 * self.SF) + 44
+        gammaSF = 4 * self.SF
+        self.Npayload = (
+            8 + max(math.ceil(thetaPLSF / gammaSF) * (self.CR + 4), 0))
 
 
 class myPacket():
@@ -187,6 +228,8 @@ nodes = []
 BW = [125000, 250000]
 # list with datarates from lora specifications EU 868-870 MHz ISM band
 DR = [250, 440, 980, 1790, 3125, 5470, 11000]
+# list with SNR values from SX1276/77/78/79 datasheet in dB
+SNRvals = [-7.5, -10, -12.5, -15, -17.5, 20]
 
 # compute energy
 # Transmit consumption in mA from -2 to +17 dBm
