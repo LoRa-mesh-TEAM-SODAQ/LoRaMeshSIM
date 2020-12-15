@@ -230,10 +230,10 @@ class myNode():
         # and ensure minimum distance between each pair of nodes
         found = 0
         rounds = 0
-        
+
         global nodes
         #i = 150
-        
+
         """
         if len(nodes) > 0:
                 for index, n in enumerate(nodes):
@@ -245,9 +245,9 @@ class myNode():
                 print("first node")
                 self.x = 100
                 self.y = 100
-                found = 1            
+                found = 1
         """
-        
+
         while (found == 0 and rounds < 100):
             a = random.random()
             b = random.random()
@@ -272,7 +272,7 @@ class myNode():
                 self.x = posx
                 self.y = posy
                 found = 1
-        
+
         self.dist = np.sqrt((self.x-bsx)*(self.x-bsx)+(self.y-bsy)*(self.y-bsy))
         print(('node %d' %nodeid, "x", self.x, "y", self.y, "dist: ", self.dist))
 
@@ -403,7 +403,7 @@ class myPacket():
 #
 def transmit(env,node):
     while True:
-        yield env.timeout(random.expovariate(1.0/float(node.period)))
+        print(yield env.timeout(random.expovariate(1.0/float(node.period))))
 
         # time sending and receiving
         # packet arrives -> add to base station

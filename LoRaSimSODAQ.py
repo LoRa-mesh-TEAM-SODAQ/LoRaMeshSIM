@@ -15,37 +15,44 @@ import os
 
 global ax
 global nodes
+global connections
+
+width = 10000000
+height = 10000000
+size = width/250
 
 def onclick(event):
-    #print('%s click: button=%d, x=%d, y=%d, xdata=%f, ydata=%f' %
-    #      ('double' if event.dblclick else 'single', event.button,
-    #       event.x, event.y, event.xdata, event.ydata))
-    for i in range(len(nodes)):
-        if round(event.xdata) >= nodes[i].x-1 and round(event.xdata) <= nodes[i].x+1:
-            nodes[i].printInfo()
+    if round(event.xdata) >= GW.x - size and round(event.xdata) <= GW.x + size:
+        GW.printInfo()
+    else:
+        for i in range(len(nodes)):
+            if round(event.xdata) >= nodes[i].x - size and round(event.xdata) <= nodes[i].x + size:
+                nodes[i].printInfo()
 
 #
 # this function creates a node
 #
 class myNode():
-    def __init__(self, nodeid, TXp, CF):
-        self.nodeid = nodeid
-        self.x = random.randint(0, 500)
-        self.y = random.randint(0, 500)
+    def __init__(self, id, TXp, CF):
+        self.id = id
+        self.x = random.randint(0, width)
+        self.y = random.randint(0, height)
         self.packetList = []
         self.distanceList = []
         self.sent = 0
         self.received = 0
         self.TXpower = TX[TXp]
         self.energyUsed = 0
-        self.numberOfHops = 0
         self.carrierFrequency = CF
+        self.beacon = None
+        self.numberOfHops = 0
+        self.sentBeacon = 0
 
         # graphics for node
         global graphics
         if (graphics == 1):
             self.graphic = plt.Circle(
-                (self.x, self.y), 2, fill=True, color='blue')
+                (self.x, self.y), size, fill=True, color='blue')
 
         self.packetList.append(myPacket(random.randint(1, 51),
                                         random.randint(7, 12),
@@ -55,32 +62,24 @@ class myNode():
                                         0))
 
     def printInfo(self):
-        print("NodeID:", self.nodeid)
+        print("id:", self.id)
         print("node x:", self.x)
         print("node y:", self.y)
         print("Distances:", end="")
         print(*self.distanceList, sep=", ")
 
-    def calcDist(self, nodes):
-        for i in range(len(nodes)):
-            if nodes[i].nodeid != self.nodeid:
-                xdist = self.x - nodes[i].x
-                ydist = self.y - nodes[i].y
-                dist = np.sqrt(xdist * xdist + ydist * ydist)
-                if dist < 200:
-                    dict = {'id': nodes[i].nodeid,  'dist' : dist, 'x':  nodes[i].x, 'y' : nodes[i].y}
-                    self.distanceList.append(dict)
-        self.distanceList = sorted(self.distanceList, key = lambda i: i['dist'])
-
-    def calcDistToGW(self, gateway):
-        xdist = self.x - gateway.x
-        ydist = self.y - gateway.y
-        dist = np.sqrt(xdist * xdist + ydist * ydist)
-        print("GW dist", dist)
-        if dist < 200:
-            dict = {'id': 'G'+str(gateway.gateID),  'dist' : dist, 'x':  gateway.x, 'y' : gateway.y}
-            self.distanceList.append(dict)
-        self.distanceList = sorted(self.distanceList, key = lambda i: i['dist'])
+    def calcDistToOther(self, other):
+        if other.id != self.id:
+            xdist = self.x - other.x
+            ydist = self.y - other.y
+            dist = np.sqrt(xdist * xdist + ydist * ydist)
+            if dist < 5000:
+                dict = {'id': other.id,  'dist': dist,
+                        'x':  other.x, 'y': other.y}
+                self.distanceList.append(dict)
+                print(dict)
+            self.distanceList = sorted(self.distanceList, key=lambda i: i['dist'])
+            return dist
 
     def sendPacket(self):
         self.packetList[0].printInfo()
@@ -101,49 +100,120 @@ class myNode():
               self.packetList.index(packet), ":", TOA)
         print()
 
+    def calcFreeSpaceLoss(self, distToGW):
+        # FSPL (dB) = 20log10(d) + 20log10(f) + 32.45
+        FSL = 20 * math.log(distToGW/1000, 10) + 20 * math.log(self.carrierFrequency, 10) + 32.45
+        return FSL
+
+    def addConnectionLines(self, other):
+        point1 = [self.x, self.y]
+        point2 = [other.x, other.y]
+        xVals = [point1[0], point2[0]]
+        yVals = [point1[1], point2[1]]
+        return plt.Line2D(xVals, yVals, color='r', linestyle='--', linewidth='.5')
+
+    def sendBeacon(self):
+        TOA = self.calcTOA(self.beacon)
+
+        print("Sending beacon at", env.now, "s, from node", self.id)
+        yield env.timeout(TOA)
+
+        RXsensi = -174 + 10 * math.log(self.beacon.BW, 10) + SNRvals[self.beacon.SF - 7]
+
+        for i in range(len(nodes)):
+            # calc freespaceloss according to distance
+            distToGW = nodes[i].calcDistToGW(self)
+            FSL = nodes[i].calcFreeSpaceLoss(distToGW)
+            RSSI = self.TXpower - FSL
+
+            print("RXsensi:", RXsensi)
+            print("RSSI beacon:", RSSI)
+            print("FSL:", FSL)
+
+            if RSSI > RXsensi:
+                dict = {'id': nodes[i].id,  'dist': distToGW,
+                        'x':  nodes[i].x, 'y': nodes[i].y}
+                self.distanceList.append(dict)
+                connections.append(nodes[i].addConnectionLines(self))
+                print("node ", i, " received beacon.")
+                self.beacon.numberOfHops += 1
+                nodes[i].numberOfHops = beacon.numberOfHops
+                nodes[i].beacon = beacon
+                self.sentBeacon += 1
+                self.totalTOA += TOA
+            else:
+                for i in range(len(nodes)):
+                    if nodes[i].beacon.numberOfHops > self.beacon.numberOfHops:
+                        print("HALLO!")
+                        nodes[i].sendBeacon()
+
+            print()
 
 class myGateway():
-    def __init__(self, gateID):
-        self.gateID = gateID
-        self.x = 250
-        self.y = 250
+    def __init__(self, id):
+        self.id = id
+        self.x = width/2
+        self.y = height/2
         self.receivedPackets = 0
         self.numberOfHops = 0
         self.distanceList = []
-        self.TXpower = 14
+        self.TXpower = 17
+        self.sentBeacon = 0
+        self.totalTOA = 0
 
         if (graphics == 1):
             self.graphic = plt.Circle(
-                (self.x, self.y), 5, fill=True, color='green')
+                (self.x, self.y), size, fill=True, color='green')
 
-    def sendBeacon(self):
+    def printInfo(self):
+        print("GWID:", self.id)
+        print("GW x:", self.x)
+        print("GW y:", self.y)
+        print("Distances:", end="")
+        print(*self.distanceList, sep=", ")
+
+    def sendBeacon(self, env):
         # Beacon SF, CR, BW need to be determined according to lora specifications
         beacon = myBeacon(34,
-                          random.randint(7, 12),
+                          7,
                           1,
                           BW[0])
-        self.calcTOA(beacon)
-        RXsensi = -174 + 10*log(BW) + 4 SNRvals.index(beacon.SF-7)
+        TOA = self.calcTOA(beacon)
+
+        print("Sending beacon at", env.now, "from gateway", self.id)
+        yield env.timeout(TOA)
+
+        RXsensi = -174 + 10 * math.log(beacon.BW, 10) + SNRvals[beacon.SF - 7]
+
         for i in range(len(nodes)):
             # calc freespaceloss according to distance
-            """
-            The path loss is usually represented as follows:
+            distToGW = nodes[i].calcDistToOther(self)
+            print(distToGW)
+            FSL = nodes[i].calcFreeSpaceLoss(distToGW)
+            RSSI = self.TXpower - FSL
 
-            FSPL = (4πdf/λ)2 = (λ/c)2 (1)
+            print("RXsensi:", RXsensi)
+            print("RSSI beacon:", RSSI)
+            print("FSL:", FSL)
 
-            ...means..:
+            if RSSI > RXsensi:
+                dict = {'id': nodes[i].id,  'dist': distToGW,
+                        'x':  nodes[i].x, 'y': nodes[i].y}
+                self.distanceList.append(dict)
+                connections.append(nodes[i].addConnectionLines(self))
+                print("node ", i, " received beacon.")
+                beacon.numberOfHops += 1
+                nodes[i].numberOfHops = beacon.numberOfHops
+                nodes[i].beacon = beacon
+                self.sentBeacon += 1
+                self.totalTOA += TOA
+            else:
+                for i in range(len(nodes)):
+                    if nodes[i].numberOfHops > 0:
+                        nodes[i].sendBeacon()
 
-            FSPL = Free Space Path Loss
-            d = distance between Tx and Rx in metres
-            f = frequency in Hertz
+            print()
 
-            There is also a widely used logarithmic calculation formula for free space damping:
-
-            FSPL (dB) = 20log10(d) + 20log10(f) - 147,55 (2)
-            """
-
-            nodes[i].calcFreeSpaceLoss()
-            RSSI = nodes[i].calcRSSI()
 
 
     def calcTOA(self, beacon):
@@ -156,6 +226,7 @@ class myGateway():
         print("Tsymbol:", Tsymbol)
         print("Time on air for beacon:", TOA)
         print()
+        return TOA
 
 
 class myBeacon():
@@ -217,27 +288,28 @@ class myPacket():
         print("CR:", self.CR)
         print("BW:", self.BW)
 
+env = simpy.Environment()
 
 # 1 to show nodes in plot
 graphics = 1
 
 # list for all nodes
 nodes = []
+connections = []
 
 # list for available bandwidths
 BW = [125000, 250000]
 # list with datarates from lora specifications EU 868-870 MHz ISM band
 DR = [250, 440, 980, 1790, 3125, 5470, 11000]
 # list with SNR values from SX1276/77/78/79 datasheet in dB
-SNRvals = [-7.5, -10, -12.5, -15, -17.5, 20]
+SNRvals = [-7.5, -10, -12.5, -15, -17.5, -20]
 
-# compute energy
 # Transmit consumption in mA from -2 to +17 dBm
 TX = [22, 22, 22, 23,                                      # RFO/PA0: -2..1
       24, 24, 24, 25, 25, 25, 25, 26, 31, 32, 34, 35, 44,  # PA_BOOST/PA1: 2..14
       82, 85, 90,                                          # PA_BOOST/PA1: 15..17
       105, 115, 125]                                       # PA_BOOST/PA1+PA2: 18..20
-# mA = 90    # current draw for TX = 17 dBm
+receiverModeCurrent = 0.0103    # current draw in A for receiver mode, band 1, BW = 125, SX1276
 V = 3.0     # voltage XXX
 
 # get arguments
@@ -253,7 +325,7 @@ else:
     print("usage: ./loraDir <amount of nodes> <TXpower> <carrierFrequency>")
     sys.exit(-1)
 
-GW = myGateway(0)
+GW = myGateway("G0")
 
 # Create nodes with avgSendTime and PacketLength
 # and add new nodes to nodes list
@@ -261,43 +333,24 @@ for i in range(0, nrNodes):
     node = myNode(i, TXpowerArg, carrierFrequency)
     nodes.append(node)
 
-ypoints = []
-xpoints = []
-
 # Calculate distance between nodes and print node info of all nodes
 for i in range(len(nodes)):
-    nodes[i].calcDistToGW(GW)
-    nodes[i].calcDist(nodes)
-
     nodes[i].printInfo()
-    nodes[i].sendPacket()
-    nodes[i].calcTOA(nodes[i].packetList[0])
-    """xpointspernode = []
-    ypointspernode = []
-    plottedlines = []
-    for j in range(len(nodes[i].distanceList)):
-        if nodes[i].distanceList[j]['id'] not in plottedlines:
-            #xpointspernode.append(nodes[i].x)
-            #ypointspernode.append(nodes[i].y)
-            xpointspernode.append(nodes[i].distanceList[j]['x'])
-            ypointspernode.append(nodes[i].distanceList[j]['y'])
-            plottedlines.append(nodes[i].distanceList[j]['id'])
-    xpoints.append(xpointspernode)
-    ypoints.append(ypointspernode)"""
 
-
-print(xpoints)
-print(ypoints)
+env.process(GW.sendBeacon(env))
+env.run(until=500)
 
 # prepare show
 if (graphics == 1):
     fig, ax = plt.subplots()
-    ax.set_xlim((0, 500))
-    ax.set_ylim((0, 500))
+    ax.set_xlim((0, width))
+    ax.set_ylim((0, height))
+
+    for i in range(len(connections)):
+        ax.add_line(connections[i])
     for i in range(len(nodes)):
-        plt.gcf().gca().add_artist(nodes[i].graphic)
-    plt.gcf().gca().add_artist(GW.graphic)
-    for i in range(len(xpoints)):
-        plt.plot(np.array(xpoints[i]), np.array(ypoints[i]), 'r--')
+        ax.add_artist(nodes[i].graphic)
+    ax.add_artist(GW.graphic)
+
     cid = fig.canvas.mpl_connect('button_press_event', onclick)
     plt.show()
