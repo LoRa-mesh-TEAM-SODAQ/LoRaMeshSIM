@@ -29,6 +29,19 @@ def onclick(event):
             if round(event.xdata) >= nodes[i].x - size and round(event.xdata) <= nodes[i].x + size:
                 nodes[i].printInfo()
 
+# RSSi from node1 to node2
+def calcRSSI(node1, node2):
+    distToOther = node1.calcDistToOther(node2)
+    if distToOther is None:
+        print("Something went wrong")
+        node1.printInfo()
+        node2.printInfo()
+        sys.exit()
+    else:
+        FSL = node1.calcFreeSpaceLoss(distToOther)
+        RSSI = node1.TXpower - FSL
+        return [RSSI, distToOther]
+
 #
 # this function creates a node
 #
@@ -66,12 +79,12 @@ class myNode():
         print("id:", self.id)
         print("node x:", self.x)
         print("node y:", self.y)
+        print("node NoH:", self.numberOfHops)
         print("Distances:", end="")
-        print(*self.distanceList, sep=", ")
+        print(*self.distanceList, sep="\n")
         print()
 
     def calcDistToOther(self, other):
-        print("him", other.id, "me", self.id)
         if other.id != self.id:
 
             xdist = self.x - other.x
@@ -82,7 +95,6 @@ class myNode():
                         'x':  other.x, 'y': other.y}
                 self.distanceList.append(dict)
                 print(dict)
-            self.distanceList = sorted(self.distanceList, key=lambda i: i['dist'])
             return dist
 
     def sendPacket(self):
@@ -99,10 +111,6 @@ class myNode():
         Tpreamble = (4.25 + packet.Npreamble) * Tsymbol
         Tpayload = packet.Npayload * Tsymbol
         TOA = Tpayload + Tpreamble
-        print("Tsymbol:", Tsymbol)
-        print("Time on air for packet",
-              packet, ":", TOA)
-        print()
         return TOA
 
     def calcFreeSpaceLoss(self, distToOther):
@@ -121,7 +129,10 @@ class myNode():
         TOA = self.calcTOA(self.beacon)
 
         print("Sending beacon at", env.now, "s, from node", self.id)
-        #yield env.timeout(TOA)
+        print("To:")
+        for i in self.distanceList:
+            print(i)
+        yield env.timeout(TOA)
 
         RXsensi = -174 + 10 * math.log(self.beacon.BW, 10) + SNRvals[self.beacon.SF - 7]
 
@@ -129,56 +140,78 @@ class myNode():
         self.sentBeacon += 1
         self.totalTOA += TOA
 
-        for i in range(len(nodes)):
-            # calc freespaceloss according to distance
-            if nodes[i].id is not self.id:
-                distToOther = nodes[i].calcDistToOther(self)
-                print(distToOther)
-                FSL = nodes[i].calcFreeSpaceLoss(distToOther)
-                RSSI = self.TXpower - FSL
+        # for i in range(len(nodes)):
+        #     # calc freespaceloss according to distance
+        #     if nodes[i].id is not self.id:
+        #         RSSID = calcRSSI(self, nodes[i])
+        #
+        #         if RSSID[0] > RXsensi + 3 and nodes[i].beacon is None: # node received beacon
+        #             dict = {'id': nodes[i].id,  'dist': RSSID[1],
+        #                     'x':  nodes[i].x, 'y': nodes[i].y, 'RSSI': RSSID[0]}
+        #             self.distanceList.append(dict)
 
-                if RSSI > RXsensi + 3: # node received beacon
-                    dict = {'id': nodes[i].id,  'dist': distToOther,
-                            'x':  nodes[i].x, 'y': nodes[i].y}
-                    self.distanceList.append(dict)
-                    connections.append(nodes[i].addConnectionLines(self))
-                    print("RXsensi:\t", RXsensi)
-                    print("FSL:\t\t", FSL)
-                    print("RSSI beacon:\t", RSSI)
-                    print("node ", i, " received beacon.\n")
+        # self.distanceList = sorted(self.distanceList, key=lambda i: i['RSSI'])
+        #print(self.distanceList)
+        for i in range(len(self.distanceList)):
+            node = nodes[self.distanceList[i]['id']]
+            print(self.distanceList[i]['RSSI'] > RXsensi)
+            if (node.beacon is None) and (self.distanceList[i]['RSSI'] > RXsensi):
+                connections.append(node.addConnectionLines(self))
+                print("RSSI beacon:\t", self.distanceList[i]['RSSI'])
+                print("node ", i, " received beacon.\n")
 
-                    nodes[i].numberOfHops = self.beacon.numberOfHops
-                    nodes[i].beacon = self.beacon
+                node.numberOfHops = self.beacon.numberOfHops
+                node.beacon = self.beacon
 
-        for i in range(len(nodes)):
-            if nodes[i].beacon is None:
-                nodes[i].sendBeacon()
+
+        # for i in range(len(nodes)):
+        #     if nodes[i].beacon is None:
+        #         self.sendBeacon()
 
 
 
 
 class myGateway():
-    def __init__(self, id):
+    def __init__(self, id, CF):
         self.id = id
         self.x = width/2
         self.y = height/2
         self.receivedPackets = 0
         self.numberOfHops = 0
         self.distanceList = []
-        self.TXpower = 17
+        self.TXpower = 14
         self.sentBeacon = 0
         self.totalTOA = 0
+        self.carrierFrequency = CF
 
         if (graphics == 1):
             self.graphic = plt.Circle(
-                (self.x, self.y), size, fill=True, color='green')
+                (self.x, self.y), size*1.5, fill=True, color='green')
 
     def printInfo(self):
         print("GWID:", self.id)
         print("GW x:", self.x)
         print("GW y:", self.y)
         print("Distances:", end="")
-        print(*self.distanceList, sep=", ")
+        print(*self.distanceList, sep="\n")
+
+    def calcFreeSpaceLoss(self, distToOther):
+        # FSPL (dB) = 20log10(d) + 20log10(f) + 32.45
+        FSL = 20 * math.log(distToOther/1000, 10) + 20 * math.log(self.carrierFrequency, 10) + 32.45
+        return FSL
+
+    def calcDistToOther(self, other):
+        if other.id != self.id:
+
+            xdist = self.x - other.x
+            ydist = self.y - other.y
+            dist = np.sqrt(xdist * xdist + ydist * ydist)
+            if dist < 5000:
+                dict = {'id': other.id,  'dist': dist,
+                        'x':  other.x, 'y': other.y}
+                self.distanceList.append(dict)
+                print(dict)
+            return dist
 
     def sendBeacon(self, env):
         # Beacon SF, CR, BW need to be determined according to lora specifications
@@ -198,26 +231,42 @@ class myGateway():
 
         for i in range(len(nodes)):
             # calc freespaceloss according to distance
-            distToOther = nodes[i].calcDistToOther(self)
-            FSL = nodes[i].calcFreeSpaceLoss(distToOther)
-            RSSI = self.TXpower - FSL
+            RSSID = calcRSSI(self, nodes[i])
 
-            if RSSI > RXsensi + 3: # node received beacon
-                dict = {'id': nodes[i].id,  'dist': distToOther,
-                        'x':  nodes[i].x, 'y': nodes[i].y}
+            if RSSID[0] > RXsensi + 3 and nodes[i].beacon is None: # node received beacon
+                dict = {'id': nodes[i].id,  'dist': RSSID[1],
+                        'x':  nodes[i].x, 'y': nodes[i].y, 'RSSI' : RSSID[0]}
                 self.distanceList.append(dict)
-                connections.append(nodes[i].addConnectionLines(self))
-                print("RXsensi:\t", RXsensi)
-                print("FSL:\t\t", FSL)
-                print("RSSI beacon:\t", RSSI)
-                print("node ", i, " received beacon.\n")
+                print("RSSI beacon:\t", RSSID[0])
+                print("RX sensitivity:\t", RXsensi)
+                print("node ", nodes[i].id, " received beacon.\n")
 
-                nodes[i].numberOfHops = beacon.numberOfHops
-                nodes[i].beacon = beacon
+        self.distanceList = sorted(self.distanceList, key=lambda i: i['RSSI'])
+        #print(*self.distanceList, sep="\n")
+        for i in range(len(self.distanceList)):
+            node = nodes[self.distanceList[i]['id']]
+            connections.append(node.addConnectionLines(self))
 
-        for i in range(len(nodes)):
-            if nodes[i].numberOfHops > 0:
-                nodes[i].sendBeacon()
+            node.numberOfHops = beacon.numberOfHops
+            node.beacon = beacon
+            highestRSSI = -200
+
+            for j in range(len(nodes)):
+                if node.id is not nodes[j].id and nodes[j].beacon is None:
+                    #print(nodes[j].beacon)
+                    RSSID = calcRSSI(node, nodes[j])
+                    dict = {'id': nodes[j].id,  'dist': RSSID[1],
+                            'x':  nodes[j].x, 'y': nodes[j].y, 'RSSI': RSSID[0]}
+                    node.distanceList.append(dict)
+                    # print(node.id)
+                    #print(dict)
+
+                node.distanceList = sorted(node.distanceList, key=lambda i: i['RSSI'], reverse=True)
+            # print("DL node", node.id)
+            # print(*node.distanceList, sep="\n")
+
+            env.process(node.sendBeacon())
+
 
     def calcTOA(self, beacon):
         # Calculate time to send a single symbol
@@ -247,7 +296,6 @@ class myBeacon():
         gammaSF = 4 * self.SF
         self.Npayload = (
             8 + max(math.ceil(thetaPLSF / gammaSF) * (self.CR + 4), 0))
-
 
 class myPacket():
     def __init__(self, packetLength, spreadingFactor, codingRate, bandwidth, header, lowDataRateOpt):
@@ -328,7 +376,7 @@ else:
     print("usage: ./loraDir <amount of nodes> <TXpower> <carrierFrequency>")
     sys.exit(-1)
 
-GW = myGateway("G0")
+GW = myGateway("G0", carrierFrequency)
 
 # Create nodes with avgSendTime and PacketLength
 # and add new nodes to nodes list
