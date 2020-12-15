@@ -17,8 +17,8 @@ global ax
 global nodes
 global connections
 
-width = 10000000
-height = 10000000
+width = 1000000
+height = 1000000
 size = width/250
 
 def onclick(event):
@@ -47,6 +47,7 @@ class myNode():
         self.beacon = None
         self.numberOfHops = 0
         self.sentBeacon = 0
+        self.totalTOA = 0
 
         # graphics for node
         global graphics
@@ -67,9 +68,12 @@ class myNode():
         print("node y:", self.y)
         print("Distances:", end="")
         print(*self.distanceList, sep=", ")
+        print()
 
     def calcDistToOther(self, other):
+        print("him", other.id, "me", self.id)
         if other.id != self.id:
+
             xdist = self.x - other.x
             ydist = self.y - other.y
             dist = np.sqrt(xdist * xdist + ydist * ydist)
@@ -96,13 +100,14 @@ class myNode():
         Tpayload = packet.Npayload * Tsymbol
         TOA = Tpayload + Tpreamble
         print("Tsymbol:", Tsymbol)
-        print("Time on air for packet number",
-              self.packetList.index(packet), ":", TOA)
+        print("Time on air for packet",
+              packet, ":", TOA)
         print()
+        return TOA
 
-    def calcFreeSpaceLoss(self, distToGW):
+    def calcFreeSpaceLoss(self, distToOther):
         # FSPL (dB) = 20log10(d) + 20log10(f) + 32.45
-        FSL = 20 * math.log(distToGW/1000, 10) + 20 * math.log(self.carrierFrequency, 10) + 32.45
+        FSL = 20 * math.log(distToOther/1000, 10) + 20 * math.log(self.carrierFrequency, 10) + 32.45
         return FSL
 
     def addConnectionLines(self, other):
@@ -116,38 +121,41 @@ class myNode():
         TOA = self.calcTOA(self.beacon)
 
         print("Sending beacon at", env.now, "s, from node", self.id)
-        yield env.timeout(TOA)
+        #yield env.timeout(TOA)
 
         RXsensi = -174 + 10 * math.log(self.beacon.BW, 10) + SNRvals[self.beacon.SF - 7]
 
+        self.beacon.numberOfHops += 1
+        self.sentBeacon += 1
+        self.totalTOA += TOA
+
         for i in range(len(nodes)):
             # calc freespaceloss according to distance
-            distToGW = nodes[i].calcDistToGW(self)
-            FSL = nodes[i].calcFreeSpaceLoss(distToGW)
-            RSSI = self.TXpower - FSL
+            if nodes[i].id is not self.id:
+                distToOther = nodes[i].calcDistToOther(self)
+                print(distToOther)
+                FSL = nodes[i].calcFreeSpaceLoss(distToOther)
+                RSSI = self.TXpower - FSL
 
-            print("RXsensi:", RXsensi)
-            print("RSSI beacon:", RSSI)
-            print("FSL:", FSL)
+                if RSSI > RXsensi + 3: # node received beacon
+                    dict = {'id': nodes[i].id,  'dist': distToOther,
+                            'x':  nodes[i].x, 'y': nodes[i].y}
+                    self.distanceList.append(dict)
+                    connections.append(nodes[i].addConnectionLines(self))
+                    print("RXsensi:\t", RXsensi)
+                    print("FSL:\t\t", FSL)
+                    print("RSSI beacon:\t", RSSI)
+                    print("node ", i, " received beacon.\n")
 
-            if RSSI > RXsensi:
-                dict = {'id': nodes[i].id,  'dist': distToGW,
-                        'x':  nodes[i].x, 'y': nodes[i].y}
-                self.distanceList.append(dict)
-                connections.append(nodes[i].addConnectionLines(self))
-                print("node ", i, " received beacon.")
-                self.beacon.numberOfHops += 1
-                nodes[i].numberOfHops = beacon.numberOfHops
-                nodes[i].beacon = beacon
-                self.sentBeacon += 1
-                self.totalTOA += TOA
-            else:
-                for i in range(len(nodes)):
-                    if nodes[i].beacon.numberOfHops > self.beacon.numberOfHops:
-                        print("HALLO!")
-                        nodes[i].sendBeacon()
+                    nodes[i].numberOfHops = self.beacon.numberOfHops
+                    nodes[i].beacon = self.beacon
 
-            print()
+        for i in range(len(nodes)):
+            if nodes[i].beacon is None:
+                nodes[i].sendBeacon()
+
+
+
 
 class myGateway():
     def __init__(self, id):
@@ -180,41 +188,36 @@ class myGateway():
                           BW[0])
         TOA = self.calcTOA(beacon)
 
-        print("Sending beacon at", env.now, "from gateway", self.id)
+        print("Sending beacon at", env.now, "s, from gateway", self.id)
         yield env.timeout(TOA)
 
         RXsensi = -174 + 10 * math.log(beacon.BW, 10) + SNRvals[beacon.SF - 7]
+        beacon.numberOfHops += 1
+        self.sentBeacon += 1
+        self.totalTOA += TOA
 
         for i in range(len(nodes)):
             # calc freespaceloss according to distance
-            distToGW = nodes[i].calcDistToOther(self)
-            print(distToGW)
-            FSL = nodes[i].calcFreeSpaceLoss(distToGW)
+            distToOther = nodes[i].calcDistToOther(self)
+            FSL = nodes[i].calcFreeSpaceLoss(distToOther)
             RSSI = self.TXpower - FSL
 
-            print("RXsensi:", RXsensi)
-            print("RSSI beacon:", RSSI)
-            print("FSL:", FSL)
-
-            if RSSI > RXsensi:
-                dict = {'id': nodes[i].id,  'dist': distToGW,
+            if RSSI > RXsensi + 3: # node received beacon
+                dict = {'id': nodes[i].id,  'dist': distToOther,
                         'x':  nodes[i].x, 'y': nodes[i].y}
                 self.distanceList.append(dict)
                 connections.append(nodes[i].addConnectionLines(self))
-                print("node ", i, " received beacon.")
-                beacon.numberOfHops += 1
+                print("RXsensi:\t", RXsensi)
+                print("FSL:\t\t", FSL)
+                print("RSSI beacon:\t", RSSI)
+                print("node ", i, " received beacon.\n")
+
                 nodes[i].numberOfHops = beacon.numberOfHops
                 nodes[i].beacon = beacon
-                self.sentBeacon += 1
-                self.totalTOA += TOA
-            else:
-                for i in range(len(nodes)):
-                    if nodes[i].numberOfHops > 0:
-                        nodes[i].sendBeacon()
 
-            print()
-
-
+        for i in range(len(nodes)):
+            if nodes[i].numberOfHops > 0:
+                nodes[i].sendBeacon()
 
     def calcTOA(self, beacon):
         # Calculate time to send a single symbol
@@ -338,7 +341,7 @@ for i in range(len(nodes)):
     nodes[i].printInfo()
 
 env.process(GW.sendBeacon(env))
-env.run(until=500)
+env.run(until=10)
 
 # prepare show
 if (graphics == 1):
