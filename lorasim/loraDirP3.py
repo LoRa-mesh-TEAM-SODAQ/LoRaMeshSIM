@@ -403,7 +403,7 @@ class myPacket():
 #
 def transmit(env,node):
     while True:
-        print(yield env.timeout(random.expovariate(1.0/float(node.period))))
+        yield env.timeout(random.expovariate(1.0/float(node.period)))
 
         # time sending and receiving
         # packet arrives -> add to base station

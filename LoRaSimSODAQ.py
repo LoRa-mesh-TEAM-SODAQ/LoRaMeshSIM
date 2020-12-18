@@ -16,17 +16,20 @@ import os
 global ax
 global nodes
 global connections
+global highestRSSI
 
 width = 1000000
 height = 1000000
 size = width/250
 
 def onclick(event):
-    if round(event.xdata) >= GW.x - size and round(event.xdata) <= GW.x + size:
+    posx = round(event.xdata)
+
+    if posx >= GW.x - size and posx <= GW.x + size:
         GW.printInfo()
     else:
         for i in range(len(nodes)):
-            if round(event.xdata) >= nodes[i].x - size and round(event.xdata) <= nodes[i].x + size:
+            if posx >= nodes[i].x - size/2 and posx <= nodes[i].x + size/2:
                 nodes[i].printInfo()
 
 # RSSi from node1 to node2
@@ -54,7 +57,7 @@ class myNode():
         self.distanceList = []
         self.sent = 0
         self.received = 0
-        self.TXpower = TX[TXp]
+        self.TXpower = TXp
         self.energyUsed = 0
         self.carrierFrequency = CF
         self.beacon = None
@@ -128,10 +131,6 @@ class myNode():
     def sendBeacon(self):
         TOA = self.calcTOA(self.beacon)
 
-        print("Sending beacon at", env.now, "s, from node", self.id)
-        print("To:")
-        for i in self.distanceList:
-            print(i)
         yield env.timeout(TOA)
 
         RXsensi = -174 + 10 * math.log(self.beacon.BW, 10) + SNRvals[self.beacon.SF - 7]
@@ -139,36 +138,52 @@ class myNode():
         self.beacon.numberOfHops += 1
         self.sentBeacon += 1
         self.totalTOA += TOA
+        highestRSSI = [0,-200]
 
-        # for i in range(len(nodes)):
-        #     # calc freespaceloss according to distance
-        #     if nodes[i].id is not self.id:
-        #         RSSID = calcRSSI(self, nodes[i])
-        #
-        #         if RSSID[0] > RXsensi + 3 and nodes[i].beacon is None: # node received beacon
-        #             dict = {'id': nodes[i].id,  'dist': RSSID[1],
-        #                     'x':  nodes[i].x, 'y': nodes[i].y, 'RSSI': RSSID[0]}
-        #             self.distanceList.append(dict)
-
-        # self.distanceList = sorted(self.distanceList, key=lambda i: i['RSSI'])
-        #print(self.distanceList)
+        print("Sending beacon at", env.now, "s, from node", self.id)
         for i in range(len(self.distanceList)):
-            node = nodes[self.distanceList[i]['id']]
-            print(self.distanceList[i]['RSSI'] > RXsensi)
-            if (node.beacon is None) and (self.distanceList[i]['RSSI'] > RXsensi):
-                connections.append(node.addConnectionLines(self))
-                print("RSSI beacon:\t", self.distanceList[i]['RSSI'])
-                print("node ", i, " received beacon.\n")
+            nodeToRec = nodes[self.distanceList[i]['id']]
+            RSSIToNodeFromSelf = self.distanceList[i]['RSSI']
 
-                node.numberOfHops = self.beacon.numberOfHops
-                node.beacon = self.beacon
+            if (nodeToRec.beacon is None) and (RSSIToNodeFromSelf > RXsensi):
+                # go through nodes
+                # check if RSSI between other node and node to receive beacon is
+                # higher than RSSI between this node and node to receive
+                print("Looking at node", nodeToRec.id)
+                for j in range(len(nodes)):
+                    otherNode = nodes[j]
+                    if otherNode is not self:
+                        for k in range(len(otherNode.distanceList)):
+                            if otherNode.distanceList[k]['id'] is nodeToRec.id:
+                                RSSIToNodeFromOtherNode = otherNode.distanceList[k]['RSSI']
+                                print("Other node id:", otherNode.id, ",RSSI:", RSSIToNodeFromOtherNode)
+                                print("Own RSSI:", RSSIToNodeFromSelf)
+                                if RSSIToNodeFromOtherNode > RSSIToNodeFromSelf:
+                                    print("Other node has setter signal")
+                                    if RSSIToNodeFromOtherNode > highestRSSI[1]:
+                                        highestRSSI = [otherNode.id, RSSIToNodeFromOtherNode]
+                print(highestRSSI)
+                if highestRSSI[1] < RSSIToNodeFromSelf:
+                    # self has best signal -> send
+                    print("Node", nodeToRec.id, "received beacon, RSSI:", RSSIToNodeFromSelf)
+                    connections.append(nodeToRec.addConnectionLines(self))
 
+                    nodeToRec.numberOfHops = self.beacon.numberOfHops
+                    nodeToRec.beacon = self.beacon
+                else:
+                    print("Node", highestRSSI[0], "should send to node", nodeToRec.id)
+
+            elif (nodeToRec.beacon is None) and (RSSIToNodeFromSelf < RXsensi): # RSSI too low
+                print("Node", nodeToRec.id, "failed  to receive beacon, RSSI too low")
+                print("RX sensitivity:\t", RXsensi)
+                print("RSSI:\t\t", RSSIToNodeFromSelf)
+            else:
+                print("Node", nodeToRec.id, "already received beacon")
+        print()
 
         # for i in range(len(nodes)):
-        #     if nodes[i].beacon is None:
-        #         self.sendBeacon()
-
-
+        #      if nodes[i].beacon is None:
+        #          self.sendBeacon()
 
 
 class myGateway():
@@ -221,7 +236,6 @@ class myGateway():
                           BW[0])
         TOA = self.calcTOA(beacon)
 
-        print("Sending beacon at", env.now, "s, from gateway", self.id)
         yield env.timeout(TOA)
 
         RXsensi = -174 + 10 * math.log(beacon.BW, 10) + SNRvals[beacon.SF - 7]
@@ -229,20 +243,24 @@ class myGateway():
         self.sentBeacon += 1
         self.totalTOA += TOA
 
+        print("Sending beacon at", env.now, "s, from gateway", self.id)
         for i in range(len(nodes)):
             # calc freespaceloss according to distance
-            RSSID = calcRSSI(self, nodes[i])
+            node = nodes[i]
+            RSSID = calcRSSI(self, node)
 
-            if RSSID[0] > RXsensi + 3 and nodes[i].beacon is None: # node received beacon
-                dict = {'id': nodes[i].id,  'dist': RSSID[1],
-                        'x':  nodes[i].x, 'y': nodes[i].y, 'RSSI' : RSSID[0]}
+            if RSSID[0] > RXsensi + 3 and node.beacon is None: # node received beacon
+                dict = {'id': node.id,  'dist': RSSID[1],
+                        'x':  node.x, 'y': node.y, 'RSSI' : RSSID[0]}
+
+                print("Node", node.id, " received beacon, RSSI:", RSSID[0])
                 self.distanceList.append(dict)
-                print("RSSI beacon:\t", RSSID[0])
-                print("RX sensitivity:\t", RXsensi)
-                print("node ", nodes[i].id, " received beacon.\n")
+            else: # node didnt receive beacon
+                print("Node", node.id, " failed  to receive beacon, RSSI:", RSSID[0])
+        print()
 
-        self.distanceList = sorted(self.distanceList, key=lambda i: i['RSSI'])
-        #print(*self.distanceList, sep="\n")
+        self.distanceList = sorted(self.distanceList, key=lambda i: i['RSSI'], reverse=True)
+
         for i in range(len(self.distanceList)):
             node = nodes[self.distanceList[i]['id']]
             connections.append(node.addConnectionLines(self))
@@ -255,9 +273,11 @@ class myGateway():
                 if node.id is not nodes[j].id and nodes[j].beacon is None:
                     #print(nodes[j].beacon)
                     RSSID = calcRSSI(node, nodes[j])
-                    dict = {'id': nodes[j].id,  'dist': RSSID[1],
-                            'x':  nodes[j].x, 'y': nodes[j].y, 'RSSI': RSSID[0]}
-                    node.distanceList.append(dict)
+
+                    if RSSID[0] > RXsensi:
+                        dict = {'id': nodes[j].id,  'dist': RSSID[1],
+                                'x':  nodes[j].x, 'y': nodes[j].y, 'RSSI': RSSID[0]}
+                        node.distanceList.append(dict)
                     # print(node.id)
                     #print(dict)
 
@@ -279,7 +299,6 @@ class myGateway():
         print("Time on air for beacon:", TOA)
         print()
         return TOA
-
 
 class myBeacon():
     def __init__(self, packetLength, spreadingFactor, codingRate, bandwidth):
@@ -401,6 +420,7 @@ if (graphics == 1):
         ax.add_line(connections[i])
     for i in range(len(nodes)):
         ax.add_artist(nodes[i].graphic)
+        ax.annotate(nodes[i].id, (nodes[i].x + width/400, nodes[i].y + width/400), size=6)
     ax.add_artist(GW.graphic)
 
     cid = fig.canvas.mpl_connect('button_press_event', onclick)
