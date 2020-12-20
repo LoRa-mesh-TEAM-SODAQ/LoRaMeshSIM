@@ -135,12 +135,12 @@ class myNode():
 
         RXsensi = -174 + 10 * math.log(self.beacon.BW, 10) + SNRvals[self.beacon.SF - 7]
 
-        self.beacon.numberOfHops += 1
-        self.sentBeacon += 1
-        self.totalTOA += TOA
         highestRSSI = [0,-200]
 
-        print("Sending beacon at", env.now, "s, from node", self.id)
+        self.sentBeacon += 1
+        self.totalTOA += TOA
+
+        print("Sending beacon at", env.now, "s, from node", self.id, "NoH", self.numberOfHops)
         for i in range(len(self.distanceList)):
             nodeToRec = nodes[self.distanceList[i]['id']]
             RSSIToNodeFromSelf = self.distanceList[i]['RSSI']
@@ -162,14 +162,14 @@ class myNode():
                                     print("Other node has setter signal")
                                     if RSSIToNodeFromOtherNode > highestRSSI[1]:
                                         highestRSSI = [otherNode.id, RSSIToNodeFromOtherNode]
-                print(highestRSSI)
+
                 if highestRSSI[1] < RSSIToNodeFromSelf:
                     # self has best signal -> send
                     print("Node", nodeToRec.id, "received beacon, RSSI:", RSSIToNodeFromSelf)
                     connections.append(nodeToRec.addConnectionLines(self))
 
-                    nodeToRec.numberOfHops = self.beacon.numberOfHops
-                    nodeToRec.beacon = self.beacon
+                    nodeToRec.numberOfHops = self.numberOfHops+1
+                    nodeToRec.beacon = myBeacon(self.beacon.PL, self.beacon.SF, self.beacon.CR, self.beacon.BW)
                 else:
                     print("Node", highestRSSI[0], "should send to node", nodeToRec.id)
 
@@ -181,9 +181,10 @@ class myNode():
                 print("Node", nodeToRec.id, "already received beacon")
         print()
 
-        # for i in range(len(nodes)):
-        #      if nodes[i].beacon is None:
-        #          self.sendBeacon()
+        for i in range(len(nodes)):
+            if nodes[i].numberOfHops == self.numberOfHops+1:
+                 #print("HALLO")
+                 env.process(nodes[i].sendBeacon())
 
 
 class myGateway():
@@ -239,7 +240,7 @@ class myGateway():
         yield env.timeout(TOA)
 
         RXsensi = -174 + 10 * math.log(beacon.BW, 10) + SNRvals[beacon.SF - 7]
-        beacon.numberOfHops += 1
+
         self.sentBeacon += 1
         self.totalTOA += TOA
 
@@ -265,7 +266,7 @@ class myGateway():
             node = nodes[self.distanceList[i]['id']]
             connections.append(node.addConnectionLines(self))
 
-            node.numberOfHops = beacon.numberOfHops
+            node.numberOfHops = self.numberOfHops + 1
             node.beacon = beacon
             highestRSSI = -200
 
@@ -425,3 +426,4 @@ if (graphics == 1):
 
     cid = fig.canvas.mpl_connect('button_press_event', onclick)
     plt.show()
+    print("End program")
