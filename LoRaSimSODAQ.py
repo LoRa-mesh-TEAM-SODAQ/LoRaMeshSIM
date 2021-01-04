@@ -10,6 +10,7 @@ import random
 import math
 import sys
 import matplotlib.pyplot as plt
+import matplotlib.patches as patches
 import numpy as np
 import os
 
@@ -18,19 +19,22 @@ global nodes
 global connections
 global highestRSSI
 
-width = 2000000
-height = 2000000
+width = 1000000
+height = 1000000
 size = width/250
 
 def onclick(event):
     if event.xdata is not None:
         posx = round(event.xdata)
+        posy = round(event.ydata)
 
-        if posx >= GW.x - size and posx <= GW.x + size:
+        if posx >= GW.x - size and posx <= GW.x + size and posy >= GW.y - size and posy <= GW.y + size:
             GW.printInfo()
+        elif posx <= 10000 and posy >= height-10000:
+            reset()
         else:
             for i in range(len(nodes)):
-                if posx >= nodes[i].x - size/2 and posx <= nodes[i].x + size/2:
+                if posx >= nodes[i].x - size and posx <= nodes[i].x + size and posy >= nodes[i].y - size and posy <= nodes[i].y + size:
                     nodes[i].printInfo()
 
 # RSSi from node1 to node2
@@ -52,6 +56,32 @@ def getConnection(self, other):
     xVals = [point1[0], point2[0]]
     yVals = [point1[1], point2[1]]
     return plt.Line2D(xVals, yVals, color='r', linestyle='--', linewidth='.5')
+
+# checks which node has best signal with receiving node
+# returns list with best connection node id and RSSI
+def checkSignal(recNode):
+    highestRSSI = [0, -200]
+
+    # go through all nodes
+    # return higest RSSI value for recNode
+    for i in range(len(nodes)):
+        otherNode = nodes[i]
+        if otherNode is not recNode:
+            RSSID = calcRSSI(otherNode, recNode)
+            if RSSID[0] > highestRSSI[1] and otherNode.beacon is not None:
+                highestRSSI[0] = otherNode.id
+                highestRSSI[1] = RSSID[0]
+    return highestRSSI
+
+def checkOutOfRange(recNode, RXsensi):
+    outOfRange = False
+    highestRSSI = checkSignal(recNode)
+
+    print("highestRSSI for node", recNode.id, highestRSSI[1], "with node", highestRSSI[0])
+    if highestRSSI[1] < RXsensi:
+        outOfRange = True
+
+    return outOfRange
 
 #
 # this function creates a node
@@ -94,8 +124,9 @@ class myNode(object):
         print("node y:", self.y)
         print("node NoH:", self.numberOfHops)
         print("Out of range:", self.outOfRange)
-        print("Distances:")
+        print("Connections:")
         print(*self.connectionList, sep="\n")
+        self.printConnections()
         print()
 
     def calcDistToOther(self, other):
@@ -106,9 +137,6 @@ class myNode(object):
             return dist
         else:
             print("Cannot calculate distance from self to self")
-
-    def addConnection(self, dict):
-        self.connectionList.append(dict)
 
     def sendPacket(self):
         self.packetList[0].printInfo()
@@ -125,58 +153,75 @@ class myNode(object):
     def addConnectionLine(self, other):
         self.connectionLines.append(getConnection(self, other))
 
-    def sendBeacon(self, env):
-        TOA = self.calcTOA(self.beacon)
+    def addConnection(self, dict):
+        self.connectionList.append(dict)
 
-        yield env.timeout(TOA)
+    def printConnections(self):
+        print("node", self.id, "can be connected to:")
+        for i in range(len(nodes)):
+            otherNode = nodes[i]
+            if otherNode is not self:
+                RSSID = calcRSSI(self, otherNode)
+                if RSSID[0] > self.beacon.RXsensi:
+                    print("node", otherNode.id, "RSSI:", RSSID[0])
 
-        RXsensi = -174 + 10 * math.log(self.beacon.BW, 10) + SNRvals[self.beacon.SF - 7]
+    def isInConnections(self, node):
+        for i in self.connectionList:
+            if i['id'] == node.id: return True
+            else: return False
 
-        highestRSSI = [0,-200]
-
-        self.sentBeacon += 1
-        self.totalTOA += TOA
-
-        print("Sending beacon at", env.now, "s, from node", self.id, "NoH", self.numberOfHops)
-        for i in range(len(self.connectionList)):
-            nodeToRec = nodes[self.connectionList[i]['id']]
-            RSSIToNodeFromSelf = self.connectionList[i]['RSSI']
-
-            if (nodeToRec.beacon is None) and (RSSIToNodeFromSelf > RXsensi):
-                # go through nodes
-                # check if RSSI between other node and node to receive beacon is
-                # higher than RSSI between this node and node to receive
-                print("Looking at node", nodeToRec.id)
-                for j in range(len(nodes)):
-                    otherNode = nodes[j]
-                    if otherNode is not self:
-                        for k in range(len(otherNode.connectionList)):
-                            if otherNode.connectionList[k]['id'] is nodeToRec.id:
-                                RSSIToNodeFromOtherNode = otherNode.connectionList[k]['RSSI']
-                                print("\tOther node id:", otherNode.id, ", RSSI:\t", RSSIToNodeFromOtherNode)
-                                print("\tOwn RSSI:\t\t\t", RSSIToNodeFromSelf)
-                                if RSSIToNodeFromOtherNode > RSSIToNodeFromSelf:
-                                    print("\tOther node has setter signal")
-                                    if RSSIToNodeFromOtherNode > highestRSSI[1]:
-                                        highestRSSI = [otherNode.id, RSSIToNodeFromOtherNode]
-
-                if highestRSSI[1] < RSSIToNodeFromSelf:
-                    # self has best signal -> send
-                    print("\tNode", nodeToRec.id, "received beacon, RSSI:", RSSIToNodeFromSelf)
-                    connections.append(nodeToRec.addConnectionLines(self))
-
-                    nodeToRec.numberOfHops = self.numberOfHops+1
-                    nodeToRec.beacon = myBeacon(self.beacon.PL, self.beacon.SF, self.beacon.CR, self.beacon.BW)
-                else:
-                    print("\tNode", highestRSSI[0], "should send to node", nodeToRec.id)
-
-            elif (nodeToRec.beacon is None) and (RSSIToNodeFromSelf < RXsensi): # RSSI too low
-                print("Node", nodeToRec.id, "failed  to receive beacon, RSSI too low")
-                print("RX sensitivity:\t", RXsensi)
-                print("RSSI:\t\t", RSSIToNodeFromSelf)
-            else:
-                print("Node", nodeToRec.id, "already received beacon")
-        print()
+    # def sendBeacon(self, env):
+    #     TOA = self.calcTOA(self.beacon)
+    #
+    #     yield env.timeout(TOA)
+    #
+    #     RXsensi = -174 + 10 * math.log(self.beacon.BW, 10) + SNRvals[self.beacon.SF - 7]
+    #
+    #     highestRSSI = [0,-200]
+    #
+    #     self.sentBeacon += 1
+    #     self.totalTOA += TOA
+    #
+    #     print("Sending beacon at", env.now, "s, from node", self.id, "NoH", self.numberOfHops)
+    #     for i in range(len(self.connectionList)):
+    #         nodeToRec = nodes[self.connectionList[i]['id']]
+    #         RSSIToNodeFromSelf = self.connectionList[i]['RSSI']
+    #
+    #         if (nodeToRec.beacon is None) and (RSSIToNodeFromSelf > RXsensi):
+    #             # go through nodes
+    #             # check if RSSI between other node and node to receive beacon is
+    #             # higher than RSSI between this node and node to receive
+    #             print("Looking at node", nodeToRec.id)
+    #             for j in range(len(nodes)):
+    #                 otherNode = nodes[j]
+    #                 if otherNode is not self:
+    #                     for k in range(len(otherNode.connectionList)):
+    #                         if otherNode.connectionList[k]['id'] is nodeToRec.id:
+    #                             RSSIToNodeFromOtherNode = otherNode.connectionList[k]['RSSI']
+    #                             print("\tOther node id:", otherNode.id, ", RSSI:\t", RSSIToNodeFromOtherNode)
+    #                             print("\tOwn RSSI:\t\t\t", RSSIToNodeFromSelf)
+    #                             if RSSIToNodeFromOtherNode > RSSIToNodeFromSelf:
+    #                                 print("\tOther node has setter signal")
+    #                                 if RSSIToNodeFromOtherNode > highestRSSI[1]:
+    #                                     highestRSSI = [otherNode.id, RSSIToNodeFromOtherNode]
+    #
+    #             if highestRSSI[1] < RSSIToNodeFromSelf:
+    #                 # self has best signal -> send
+    #                 print("\tNode", nodeToRec.id, "received beacon, RSSI:", RSSIToNodeFromSelf)
+    #                 connections.append(nodeToRec.addConnectionLines(self))
+    #
+    #                 nodeToRec.numberOfHops = self.numberOfHops+1
+    #                 nodeToRec.beacon = myBeacon(self.beacon.PL, self.beacon.SF, self.beacon.CR, self.beacon.BW)
+    #             else:
+    #                 print("\tNode", highestRSSI[0], "should send to node", nodeToRec.id)
+    #
+    #         elif (nodeToRec.beacon is None) and (RSSIToNodeFromSelf < RXsensi): # RSSI too low
+    #             print("Node", nodeToRec.id, "failed  to receive beacon, RSSI too low")
+    #             print("RX sensitivity:\t", RXsensi)
+    #             print("RSSI:\t\t", RSSIToNodeFromSelf)
+    #         else:
+    #             print("Node", nodeToRec.id, "already received beacon")
+    #     print()
 
 class myGateway(object):
     def __init__(self, id, CF):
@@ -340,35 +385,9 @@ def beaconFromGW():
         print("ERROR: No beacon found in gateway:", GW.id)
         return 0
 
-# checks which node has best signal with receiving node
-# returns list with best connection node id and RSSI
-def checkSignal(recNode):
-    highestRSSI = [0, -200]
-
-    # go through all nodes
-    # return higest RSSI value for recNode
-    for i in range(len(nodes)):
-        otherNode = nodes[i]
-        if otherNode is not recNode:
-            RSSID = calcRSSI(otherNode, recNode)
-            if RSSID[0] > highestRSSI[1] and otherNode.beacon is not None:
-                highestRSSI[0] = otherNode.id
-                highestRSSI[1] = RSSID[0]
-    return highestRSSI
-
-def checkOutOfRange(recNode, RXsensi):
-    outOfRange = False
-    highestRSSI = checkSignal(recNode)
-
-    print("highestRSSI for node", recNode.id, highestRSSI[1], "with node", highestRSSI[0])
-    if highestRSSI[1] < RXsensi:
-        outOfRange = True
-
-    return outOfRange
-
 def beaconFromNode(sendNode):
     print("Sending beacon from node", sendNode.id, "NoH:", sendNode.numberOfHops)
-    # go through all nodes
+    #go through all nodes
     for i in range(len(nodes)):
         recNode = nodes[i]
         print("Looking at node", recNode.id)
@@ -383,32 +402,58 @@ def beaconFromNode(sendNode):
                 # check if RSSI between other node and node to receive beacon is
                 # higher than RSSI between this node and node to receive
                 highestRSSID = checkSignal(recNode)
+                bestconNode = nodes[highestRSSID[0]]
 
-                if highestRSSID[0] == sendNode.id:
-                    print("\tBest connection with this node")
-                    # sendNode has best connection -> send to recNode
-                    SNTRN = {'id': recNode.id, 'RSSI': RSSIToRecNodeFromSendNode, 'dist': RSSID[1]} # sending node to receiver node
-                    RNTSN = {'id': sendNode.id, 'RSSI': RSSIToRecNodeFromSendNode, 'dist': RSSID[1]} # receiver node to sending node
+                # if bestconNode.id == sendNode.id:
+                print("\tBest connection with this node")
+                # sendNode has best connection -> send to recNode
+                SNTRN = {'id': recNode.id, 'RSSI': RSSIToRecNodeFromSendNode, 'dist': RSSID[1]} # sending node to receiver node
+                RNTSN = {'id': sendNode.id, 'RSSI': RSSIToRecNodeFromSendNode, 'dist': RSSID[1]} # receiver node to sending node
 
+                if SNTRN not in sendNode.connectionList:
                     # add connections to connection lists of nodes
-                    recNode.addConnection(RNTSN)
                     sendNode.addConnection(SNTRN)
+
+                    # add graphic lines from recNode to sendnode
+                    sendNode.addConnectionLine(recNode)
+
+                if RNTSN not in recNode.connectionList:
+                    recNode.addConnection(RNTSN)
 
                     # Set number of hops from recNode to sendnode
                     recNode.numberOfHops = sendNode.numberOfHops + 1
                     recNode.beacon = sendNode.beacon
 
-                    # add graphic lines from recNode to sendnode
-                    sendNode.addConnectionLine(recNode)
-                    print("\tNode", recNode.id, "received beacon, RSSI:", RSSIToRecNodeFromSendNode)
-                else:
-                    # other node has better connection to recNode
-                    print("\tOther node has setter signal, not sending")
-                    print("\tNode", highestRSSID[0], "should send to node", recNode.id)
+                print("\tNode", recNode.id, "received beacon, RSSI:", RSSIToRecNodeFromSendNode)
+                # elif bestconNode.beacon is None and not sendNode.isInConnections(bestconNode):
+                #     print("\tNot best connection with this node, but less hops")
+                #     # sendNode has best connection -> send to recNode
+                #     SNTRN = {'id': recNode.id, 'RSSI': RSSIToRecNodeFromSendNode, 'dist': RSSID[1]} # sending node to receiver node
+                #     RNTSN = {'id': sendNode.id, 'RSSI': RSSIToRecNodeFromSendNode, 'dist': RSSID[1]} # receiver node to sending node
+                #
+                #     if SNTRN not in sendNode.connectionList:
+                #         # add connections to connection lists of nodes
+                #         sendNode.addConnection(SNTRN)
+                #
+                #         # add graphic lines from recNode to sendnode
+                #         sendNode.addConnectionLine(recNode)
+                #
+                #     if RNTSN not in recNode.connectionList:
+                #         recNode.addConnection(RNTSN)
+                #
+                #         # Set number of hops from recNode to sendnode
+                #         recNode.numberOfHops = sendNode.numberOfHops + 1
+                #         recNode.beacon = sendNode.beacon
+                #
+                #     print("\tNode", recNode.id, "received beacon, RSSI:", RSSIToRecNodeFromSendNode)
+                # else:
+                #     # other node has better connection to recNode
+                #     print("\tOther node has better signal, not sending")
+                #     print("\tNode", highestRSSID[0], "should send to node", recNode.id)
             else: # RSSI too low
                 print("\tNode", recNode.id, "failed to receive beacon, RSSI too low")
                 print("\tRX sensitivity:\t", sendNode.beacon.RXsensi)
-                print("\tRSSI:\t\t", RSSIToRecNodeFromSendNode)
+                print("\tRSSI:\t\t\t", RSSIToRecNodeFromSendNode)
 
         elif recNode.beacon is not None:
             print("\tNode", recNode.id, "already received beacon")
@@ -423,6 +468,7 @@ def beaconFromNodes():
             if node.numberOfHops == NoH and node.beacon is not None:
                 # send beacon from the nodes that received a beacon from GW
                 beaconFromNode(node)
+                node.connectionList = sorted(node.connectionList, key=lambda i: i['RSSI'], reverse=True)
                 print()
 
         # next hop
@@ -444,6 +490,7 @@ def beaconFromNodes():
         if nodesDone == len(nodes):
             print("End of beacon")
             beaconDone = True
+        print("nodes done", nodesDone)
 
 # 1 to show nodes in plot
 graphics = 1
@@ -464,7 +511,7 @@ TX = [22, 22, 22, 23,                                      # RFO/PA0: -2..1
       24, 24, 24, 25, 25, 25, 25, 26, 31, 32, 34, 35, 44,  # PA_BOOST/PA1: 2..14
       82, 85, 90,                                          # PA_BOOST/PA1: 15..17
       105, 115, 125]                                       # PA_BOOST/PA1+PA2: 18..20
-receiverModeCurrent = 0.0103    # current draw in A for receiver mode, band 1, BW = 125, SX1276
+receiverModeCurrent = 0.0103                               # current draw in A for receiver mode, band 1, BW = 125, SX1276
 V = 3.0     # voltage XXX
 
 # get arguments
@@ -480,7 +527,50 @@ else:
     print("usage: ./loraDir <amount of nodes> <TXpower> <carrierFrequency>")
     sys.exit(-1)
 
-def setup():
+fig, ax = plt.subplots()
+
+def showGraph(reset):
+    # prepare show
+    if reset:
+        #fig.clf();
+        ax.cla();
+        # fig, ax = plt.subplots()
+        print("reset plot")
+        #plt.clear()
+        ax.set_xlim((0, width))
+        ax.set_ylim((0, height))
+
+        for i in range(len(nodes)):
+            for j in range(len(nodes[i].connectionLines)):
+                ax.add_line(nodes[i].connectionLines[j])
+            ax.add_artist(nodes[i].graphic)
+            ax.annotate(nodes[i].id, (nodes[i].x + width/400, nodes[i].y + width/400), size=6)
+        ax.add_artist(GW.graphic)
+        resetRect = patches.Rectangle((0, height-10000), 10000, 10000, linewidth=3, edgecolor='r', facecolor='r')
+        ax.add_patch(resetRect)
+
+        cid = fig.canvas.mpl_connect('button_press_event', onclick)
+        plt.draw()
+        print("End program")
+    else:
+
+        ax.set_xlim((0, width))
+        ax.set_ylim((0, height))
+
+        for i in range(len(nodes)):
+            for j in range(len(nodes[i].connectionLines)):
+                ax.add_line(nodes[i].connectionLines[j])
+            ax.add_artist(nodes[i].graphic)
+            ax.annotate(nodes[i].id, (nodes[i].x + width/400, nodes[i].y + width/400), size=6)
+        ax.add_artist(GW.graphic)
+        resetRect = patches.Rectangle((0, height-10000), 10000, 10000, linewidth=3, edgecolor='r', facecolor='r')
+        ax.add_patch(resetRect)
+
+        cid = fig.canvas.mpl_connect('button_press_event', onclick)
+        plt.show()
+        print("End program")
+
+def setup(reset):
     # add new nodes to nodes list
     for i in range(0, nrNodes):
         node = myNode(i, TXpowerArg, carrierFrequency)
@@ -491,28 +581,20 @@ def setup():
     if beaconFromGW():
         print("Succesfully sent beacon\n")
         beaconFromNodes()
+        if reset:
+            showGraph(True)
+        else:
+            showGraph(False)
     else:
         sys.exit(-1)
 
+def reset():
+    #print("pop")
+    nodes.clear()
 
+    GW = myGateway("G0", carrierFrequency)
+    setup(True)
 
 # start with making a new gateway
 GW = myGateway("G0", carrierFrequency)
-setup()
-
-# prepare show
-if (graphics == 1):
-    fig, ax = plt.subplots()
-    ax.set_xlim((0, width))
-    ax.set_ylim((0, height))
-
-    for i in range(len(nodes)):
-        for j in range(len(nodes[i].connectionLines)):
-            ax.add_line(nodes[i].connectionLines[j])
-        ax.add_artist(nodes[i].graphic)
-        ax.annotate(nodes[i].id, (nodes[i].x + width/400, nodes[i].y + width/400), size=6)
-    ax.add_artist(GW.graphic)
-
-    cid = fig.canvas.mpl_connect('button_press_event', onclick)
-    plt.show()
-    print("End program")
+setup(False)
