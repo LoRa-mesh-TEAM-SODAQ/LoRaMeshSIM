@@ -18,8 +18,8 @@ global nodes
 global connections
 global highestRSSI
 
-width = 3000000
-height = 3000000
+width = 2000000
+height = 2000000
 size = width/250
 
 def onclick(event):
