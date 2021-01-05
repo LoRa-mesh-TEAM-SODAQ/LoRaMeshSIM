@@ -19,8 +19,8 @@ global nodes
 global connections
 global highestRSSI
 
-width = 1000000
-height = 1000000
+width = 2000000
+height = 2000000
 size = width/250
 
 def onclick(event):
@@ -166,9 +166,10 @@ class myNode(object):
                     print("node", otherNode.id, "RSSI:", RSSID[0])
 
     def isInConnections(self, node):
-        for i in self.connectionList:
-            if i['id'] == node.id: return True
-            else: return False
+        result = False
+        for i in range(len(self.connectionList)):
+            if self.connectionList[i]['id'] == node.id: result = True
+        return result
 
     # def sendBeacon(self, env):
     #     TOA = self.calcTOA(self.beacon)
@@ -404,59 +405,64 @@ def beaconFromNode(sendNode):
                 highestRSSID = checkSignal(recNode)
                 bestconNode = nodes[highestRSSID[0]]
 
-                # if bestconNode.id == sendNode.id:
-                print("\tBest connection with this node")
-                # sendNode has best connection -> send to recNode
-                SNTRN = {'id': recNode.id, 'RSSI': RSSIToRecNodeFromSendNode, 'dist': RSSID[1]} # sending node to receiver node
-                RNTSN = {'id': sendNode.id, 'RSSI': RSSIToRecNodeFromSendNode, 'dist': RSSID[1]} # receiver node to sending node
+                print("HALLO", sendNode.isInConnections(bestconNode))
+                for i in sendNode.connectionList:
+                    print(i)
+                print("nope", bestconNode.id)
 
-                if SNTRN not in sendNode.connectionList:
-                    # add connections to connection lists of nodes
-                    sendNode.addConnection(SNTRN)
+                if bestconNode.id == sendNode.id:
+                    print("\tBest connection with this node")
+                    # sendNode has best connection -> send to recNode
+                    SNTRN = {'id': recNode.id, 'RSSI': RSSIToRecNodeFromSendNode, 'dist': RSSID[1]} # sending node to receiver node
+                    RNTSN = {'id': sendNode.id, 'RSSI': RSSIToRecNodeFromSendNode, 'dist': RSSID[1]} # receiver node to sending node
 
-                    # add graphic lines from recNode to sendnode
-                    sendNode.addConnectionLine(recNode)
+                    if SNTRN not in sendNode.connectionList:
+                        # add connections to connection lists of nodes
+                        sendNode.addConnection(SNTRN)
 
-                if RNTSN not in recNode.connectionList:
-                    recNode.addConnection(RNTSN)
+                        # add graphic lines from recNode to sendnode
+                        sendNode.addConnectionLine(recNode)
 
-                    # Set number of hops from recNode to sendnode
-                    recNode.numberOfHops = sendNode.numberOfHops + 1
-                    recNode.beacon = sendNode.beacon
+                    if RNTSN not in recNode.connectionList:
+                        recNode.addConnection(RNTSN)
 
-                print("\tNode", recNode.id, "received beacon, RSSI:", RSSIToRecNodeFromSendNode)
-                # elif bestconNode.beacon is None and not sendNode.isInConnections(bestconNode):
-                #     print("\tNot best connection with this node, but less hops")
-                #     # sendNode has best connection -> send to recNode
-                #     SNTRN = {'id': recNode.id, 'RSSI': RSSIToRecNodeFromSendNode, 'dist': RSSID[1]} # sending node to receiver node
-                #     RNTSN = {'id': sendNode.id, 'RSSI': RSSIToRecNodeFromSendNode, 'dist': RSSID[1]} # receiver node to sending node
-                #
-                #     if SNTRN not in sendNode.connectionList:
-                #         # add connections to connection lists of nodes
-                #         sendNode.addConnection(SNTRN)
-                #
-                #         # add graphic lines from recNode to sendnode
-                #         sendNode.addConnectionLine(recNode)
-                #
-                #     if RNTSN not in recNode.connectionList:
-                #         recNode.addConnection(RNTSN)
-                #
-                #         # Set number of hops from recNode to sendnode
-                #         recNode.numberOfHops = sendNode.numberOfHops + 1
-                #         recNode.beacon = sendNode.beacon
-                #
-                #     print("\tNode", recNode.id, "received beacon, RSSI:", RSSIToRecNodeFromSendNode)
-                # else:
-                #     # other node has better connection to recNode
-                #     print("\tOther node has better signal, not sending")
-                #     print("\tNode", highestRSSID[0], "should send to node", recNode.id)
+                        # Set number of hops from recNode to sendnode
+                        recNode.numberOfHops = sendNode.numberOfHops + 1
+                        recNode.beacon = sendNode.beacon
+
+                    print("\tNode", recNode.id, "received beacon, RSSI:", RSSIToRecNodeFromSendNode)
+                elif sendNode.isInConnections(bestconNode):
+                    print("\tNot best connection with this node, but less hops")
+                    # sendNode has best connection -> send to recNode
+                    SNTRN = {'id': recNode.id, 'RSSI': RSSIToRecNodeFromSendNode, 'dist': RSSID[1]} # sending node to receiver node
+                    RNTSN = {'id': sendNode.id, 'RSSI': RSSIToRecNodeFromSendNode, 'dist': RSSID[1]} # receiver node to sending node
+
+                    if SNTRN not in sendNode.connectionList:
+                        # add connections to connection lists of nodes
+                        sendNode.addConnection(SNTRN)
+
+                        # add graphic lines from recNode to sendnode
+                        sendNode.addConnectionLine(recNode)
+
+                    if RNTSN not in recNode.connectionList:
+                        recNode.addConnection(RNTSN)
+
+                        # Set number of hops from recNode to sendnode
+                        recNode.numberOfHops = sendNode.numberOfHops + 1
+                        recNode.beacon = sendNode.beacon
+
+                    print("\tNode", recNode.id, "received beacon, RSSI:", RSSIToRecNodeFromSendNode)
+                else:
+                    # other node has better connection to recNode
+                    print("\tOther node has better signal, not sending")
+                    print("\tNode", highestRSSID[0], "should send to node", recNode.id)
             else: # RSSI too low
                 print("\tNode", recNode.id, "failed to receive beacon, RSSI too low")
                 print("\tRX sensitivity:\t", sendNode.beacon.RXsensi)
                 print("\tRSSI:\t\t\t", RSSIToRecNodeFromSendNode)
 
-        elif recNode.beacon is not None:
-            print("\tNode", recNode.id, "already received beacon")
+        # elif recNode.beacon is not None:
+            #print("\tNode", recNode.id, "already received beacon")
 
 def beaconFromNodes():
     NoH = 1
