@@ -14,15 +14,6 @@ import matplotlib.patches as patches
 import numpy as np
 import os
 
-global ax
-global nodes
-global connections
-global highestRSSI
-
-width = 2000000
-height = 2000000
-size = width/250
-
 def onclick(event):
     if event.xdata is not None:
         posx = round(event.xdata)
@@ -37,7 +28,13 @@ def onclick(event):
                 if posx >= nodes[i].x - size and posx <= nodes[i].x + size and posy >= nodes[i].y - size and posy <= nodes[i].y + size:
                     nodes[i].printInfo()
 
-# RSSi from node1 to node2
+# Func: calcRSSI(sendNode, recNode)
+# Params:
+# sending node      - myNode object
+# receiving node    - myNode object
+# calculates RSSI value between sendNode and recNode
+# returns:
+# list [RSSI, distance between recNode and sendNode]
 def calcRSSI(sendNode, recNode):
     distToOther = sendNode.calcDistToOther(recNode)
     if distToOther is None:
@@ -50,15 +47,26 @@ def calcRSSI(sendNode, recNode):
         RSSI = sendNode.TXpower - FSL
         return [RSSI, distToOther]
 
-def getConnection(self, other):
-    point1 = [self.x, self.y]
-    point2 = [other.x, other.y]
+# Func: getConnection(self, other)
+# Params:
+# node1     - myNode object
+# node2     - myNode object
+# Makes a line2D object between the 2 positions of the nodes
+# returns:
+# Line2D object
+def getConnection(node1, node2):
+    point1 = [node1.x, node1.y]
+    point2 = [node2.x, node2.y]
     xVals = [point1[0], point2[0]]
     yVals = [point1[1], point2[1]]
     return plt.Line2D(xVals, yVals, color='r', linestyle='--', linewidth='.5')
 
+# Func: def checkSignal(recNode)
+# Params:
+# receiving node - myNode object
 # checks which node has best signal with receiving node
-# returns list with best connection node id and RSSI
+# returns:
+# list [node id, RSSI]
 def checkSignal(recNode):
     highestRSSI = [0, -200]
 
@@ -73,6 +81,14 @@ def checkSignal(recNode):
                 highestRSSI[1] = RSSID[0]
     return highestRSSI
 
+# Func: checkOutOfRange(recNode, RXsensi)
+# Params:
+# receiving node            - myNode object
+# RX sensitivity of packet  - integer
+# checks if the receiving node is in range of any of the nodes that have
+# received a beacon.
+# returns:
+# outOfRange                - boolean
 def checkOutOfRange(recNode, RXsensi):
     outOfRange = False
     highestRSSI = checkSignal(recNode)
@@ -83,9 +99,6 @@ def checkOutOfRange(recNode, RXsensi):
 
     return outOfRange
 
-#
-# this function creates a node
-#
 class myNode(object):
     def __init__(self, id, TXp, CF):
         self.id = id
@@ -405,11 +418,6 @@ def beaconFromNode(sendNode):
                 highestRSSID = checkSignal(recNode)
                 bestconNode = nodes[highestRSSID[0]]
 
-                print("HALLO", sendNode.isInConnections(bestconNode))
-                for i in sendNode.connectionList:
-                    print(i)
-                print("nope", bestconNode.id)
-
                 if bestconNode.id == sendNode.id:
                     print("\tBest connection with this node")
                     # sendNode has best connection -> send to recNode
@@ -461,9 +469,6 @@ def beaconFromNode(sendNode):
                 print("\tRX sensitivity:\t", sendNode.beacon.RXsensi)
                 print("\tRSSI:\t\t\t", RSSIToRecNodeFromSendNode)
 
-        # elif recNode.beacon is not None:
-            #print("\tNode", recNode.id, "already received beacon")
-
 def beaconFromNodes():
     NoH = 1
     beaconDone = False
@@ -498,6 +503,11 @@ def beaconFromNodes():
             beaconDone = True
         print("nodes done", nodesDone)
 
+# parameters for plot and node size
+width = 2000000
+height = 2000000
+size = width/250
+
 # 1 to show nodes in plot
 graphics = 1
 
@@ -513,12 +523,12 @@ DR = [250, 440, 980, 1790, 3125, 5470, 11000]
 SNRvals = [-7.5, -10, -12.5, -15, -17.5, -20]
 
 # Transmit consumption in mA from -2 to +17 dBm
-TX = [22, 22, 22, 23,                                      # RFO/PA0: -2..1
-      24, 24, 24, 25, 25, 25, 25, 26, 31, 32, 34, 35, 44,  # PA_BOOST/PA1: 2..14
-      82, 85, 90,                                          # PA_BOOST/PA1: 15..17
-      105, 115, 125]                                       # PA_BOOST/PA1+PA2: 18..20
-receiverModeCurrent = 0.0103                               # current draw in A for receiver mode, band 1, BW = 125, SX1276
-V = 3.0     # voltage XXX
+TX = [22, 22, 22, 23,                                       # RFO/PA0: -2..1
+      24, 24, 24, 25, 25, 25, 25, 26, 31, 32, 34, 35, 44,   # PA_BOOST/PA1: 2..14
+      82, 85, 90,                                           # PA_BOOST/PA1: 15..17
+      105, 115, 125]                                        # PA_BOOST/PA1+PA2: 18..20
+receiverModeCurrent = 0.0103                                # current draw in A for receiver mode, band 1, BW = 125, SX1276
+V = 3.0                                                     # voltage XXX
 
 # get arguments
 if len(sys.argv) >= 3:
@@ -535,7 +545,15 @@ else:
 
 fig, ax = plt.subplots()
 
-def showGraph(reset):
+# Func: showPlot(reset)
+# Params:
+# reset - boolean
+# Prepares plot and makes window in which to show the figure.
+# If reset = False, the plot will be made for the first time.
+# If reset = True, the plot will be cleared and filled with new data.
+# returns:
+# None
+def showPlot(reset):
     # prepare show
     if reset:
         #fig.clf();
@@ -576,6 +594,15 @@ def showGraph(reset):
         plt.show()
         print("End program")
 
+# Func: setup(reset)
+# Params:
+# reset - boolean
+# Main program.
+# If reset = False, it's first time setup.
+# If reset = True, all data from nodes and gateway is deleted and is
+# randomly generated again.
+# returns:
+# None
 def setup(reset):
     # add new nodes to nodes list
     for i in range(0, nrNodes):
@@ -588,12 +615,18 @@ def setup(reset):
         print("Succesfully sent beacon\n")
         beaconFromNodes()
         if reset:
-            showGraph(True)
+            showPlot(True)
         else:
-            showGraph(False)
+            showPlot(False)
     else:
         sys.exit(-1)
 
+# Func: reset()
+# Params:
+# None
+# Is called by the onClick function. Resets all data and makes new plot.
+# returns:
+# None
 def reset():
     #print("pop")
     nodes.clear()
@@ -603,4 +636,5 @@ def reset():
 
 # start with making a new gateway
 GW = myGateway("G0", carrierFrequency)
+# setup simulation for first time.
 setup(False)
