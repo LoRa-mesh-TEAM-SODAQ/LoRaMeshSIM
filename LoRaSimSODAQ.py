@@ -21,7 +21,7 @@ def onclick(event):
 
         if posx >= GW.x - size and posx <= GW.x + size and posy >= GW.y - size and posy <= GW.y + size:
             GW.printInfo()
-        elif posx <= 10000 and posy >= height-10000:
+        elif posx <= size*2 and posy >= height-size*2:
             reset()
         else:
             for i in range(len(nodes)):
@@ -555,44 +555,28 @@ fig, ax = plt.subplots()
 # None
 def showPlot(reset):
     # prepare show
+
     if reset:
-        #fig.clf();
-        ax.cla();
-        # fig, ax = plt.subplots()
         print("reset plot")
-        #plt.clear()
-        ax.set_xlim((0, width))
-        ax.set_ylim((0, height))
+        ax.cla();
+    ax.set_xlim((0, width))
+    ax.set_ylim((0, height))
 
-        for i in range(len(nodes)):
-            for j in range(len(nodes[i].connectionLines)):
-                ax.add_line(nodes[i].connectionLines[j])
-            ax.add_artist(nodes[i].graphic)
-            ax.annotate(nodes[i].id, (nodes[i].x + width/400, nodes[i].y + width/400), size=6)
-        ax.add_artist(GW.graphic)
-        resetRect = patches.Rectangle((0, height-10000), 10000, 10000, linewidth=3, edgecolor='r', facecolor='r')
-        ax.add_patch(resetRect)
+    for i in range(len(nodes)):
+        for j in range(len(nodes[i].connectionLines)):
+            ax.add_line(nodes[i].connectionLines[j])
+        ax.add_artist(nodes[i].graphic)
+        ax.annotate(nodes[i].id, (nodes[i].x + width/400, nodes[i].y + width/400), size=6)
+    ax.add_artist(GW.graphic)
+    resetRect = patches.Rectangle((0, height-size*2), size*2, size*2, linewidth=3, edgecolor='r', facecolor='r')
+    ax.add_patch(resetRect)
 
-        cid = fig.canvas.mpl_connect('button_press_event', onclick)
+    cid = fig.canvas.mpl_connect('button_press_event', onclick)
+    if reset:
         plt.draw()
-        print("End program")
     else:
-
-        ax.set_xlim((0, width))
-        ax.set_ylim((0, height))
-
-        for i in range(len(nodes)):
-            for j in range(len(nodes[i].connectionLines)):
-                ax.add_line(nodes[i].connectionLines[j])
-            ax.add_artist(nodes[i].graphic)
-            ax.annotate(nodes[i].id, (nodes[i].x + width/400, nodes[i].y + width/400), size=6)
-        ax.add_artist(GW.graphic)
-        resetRect = patches.Rectangle((0, height-10000), 10000, 10000, linewidth=3, edgecolor='r', facecolor='r')
-        ax.add_patch(resetRect)
-
-        cid = fig.canvas.mpl_connect('button_press_event', onclick)
         plt.show()
-        print("End program")
+    print("End program")
 
 # Func: setup(reset)
 # Params:
