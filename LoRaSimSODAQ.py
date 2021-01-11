@@ -142,6 +142,9 @@ class myNode(object):
         self.printConnections()
         print()
 
+    def addPacket(self, packet):
+        self.packetList.append(packet)
+
     def calcDistToOther(self, other):
         if other is not self:
             xdist = self.x - other.x
@@ -238,10 +241,10 @@ class myNode(object):
     #     print()
 
 class myGateway(object):
-    def __init__(self, id, CF):
+    def __init__(self, id, CF, x, y):
         self.id = id
-        self.x = width/2
-        self.y = height/2
+        self.x = x
+        self.y = y
         self.receivedPackets = 0
         self.numberOfHops = 0
         self.connectionList = []
@@ -364,7 +367,7 @@ class myPacket(object):
         print("CR:", self.CR)
         print("BW:", self.BW)
 
-def beaconFromGW():
+def beaconFromGW(GW):
     if GW.beacon is not None:
         print("Sending beacon from gateway", GW.id)
         for i in range(len(nodes)):
@@ -503,6 +506,47 @@ def beaconFromNodes():
             beaconDone = True
         print("nodes done", nodesDone)
 
+def getRandomPacket():
+    SF = random.randint(7, 12)
+    codingRate = 1
+    bandwidth = random.choice(BW)
+    header = 1
+
+    if bandwidth == 125000 and SF >= 11:
+        lowDataRateOpt = 1
+    else:
+        lowDataRateOpt = 0
+
+    # Override SF for BW = 250 kHz
+    if bandwidth == 250000:
+        SF = 7
+
+    if bandwidth == 125000 and SF == 9:
+        packetLength = random.randint(0,115)
+    elif bandwidth == 125000 and SF <= 8 or bandwidth == 250000 and SF == 7:
+        packetLength = random.randint(0,222)
+    else:
+        packetLength = random.randint(0,51)
+
+    return myPacket(packetLength, SF, codingRate, bandwidth, header, lowDataRateOpt)
+
+def sendRandomPacket():
+    # get random packet to send
+    randPacket = getRandomPacket();
+
+    # pick random node to send the packet and add the randPacket to its list
+    randNode = nodes[random.randint(0,nrNodes)]
+    randNode.addPacket(randPacket)
+
+    # send packet to a node in randNode's connection list
+    # can only be done if:
+    # randNode has connection to a node with less number of hops
+    if len(randNode.connectionList) >= 0:
+        print("node", randNode.id, "nodes to send to", )
+        print(randNode.connectionList, sep="\n")
+    else:
+        print("randNode has no node to send to")
+
 # parameters for plot and node size
 width = 2000000
 height = 2000000
@@ -568,6 +612,7 @@ def showPlot(reset):
         ax.add_artist(nodes[i].graphic)
         ax.annotate(nodes[i].id, (nodes[i].x + width/400, nodes[i].y + width/400), size=6)
     ax.add_artist(GW.graphic)
+
     resetRect = patches.Rectangle((0, height-size*2), size*2, size*2, linewidth=3, edgecolor='r', facecolor='r')
     ax.add_patch(resetRect)
 
@@ -595,9 +640,11 @@ def setup(reset):
 
     # add beacon to the GW and send it to nodes
     GW.addBeacon()
-    if beaconFromGW():
+    #GW1.addBeacon()
+    if beaconFromGW(GW):
         print("Succesfully sent beacon\n")
         beaconFromNodes()
+        sendRandomPacket();
         if reset:
             showPlot(True)
         else:
@@ -615,10 +662,12 @@ def reset():
     #print("pop")
     nodes.clear()
 
-    GW = myGateway("G0", carrierFrequency)
+    GW = myGateway("G0", carrierFrequency, width/4, height/4)
+
     setup(True)
 
 # start with making a new gateway
-GW = myGateway("G0", carrierFrequency)
+GW = myGateway("G0", carrierFrequency, width/2, height/2)
+
 # setup simulation for first time.
 setup(False)
