@@ -132,12 +132,13 @@ class myNode(object):
         self.totalTOA = 0
         self.totalTR = 0
         self.outOfRange = False
+        self.color = 'blue'
 
         # graphics for node
         global graphics
         if (graphics == 1):
             self.graphic = plt.Circle(
-                (self.x, self.y), size, fill=True, color='blue')
+                (self.x, self.y), size, fill=True, color=self.color)
 
     def printInfo(self):
         print("id:", self.id)
@@ -148,6 +149,9 @@ class myNode(object):
         print("Total time on air:", self.totalTOA)
         print("Energy usage:", self.energyUsed)
         print("Connections:")
+        print(*self.connectionList, sep="\n")
+        self.printConnections()
+        print("amount = ",self.traffic())
         for i in self.connectionList:
             print("Node:", i.get('Node_Gateway').id, "RSSI:",
                   i.get('RSSI'), "distance:", i.get('dist'))
@@ -217,6 +221,21 @@ class myNode(object):
             if isinstance(nodeInCon, myNode) and nodeInCon == node:
                 result = True
         return result
+
+    def traffic(self, amount=0):
+        for i in range(len(nodes)):
+            otherNode = nodes[i]
+            if otherNode is not self:
+                if self.isInConnections(otherNode):
+                    if self.numberOfHops < otherNode.numberOfHops:
+                        if len(otherNode.connectionList) > 1:
+                            amount = otherNode.traffic(amount)
+                            amount = amount + 1
+                        else:
+                            amount = amount + 1
+        return amount
+
+
 
     # def sendBeacon(self, env):
     #     TOA = self.calcTOA(self.beacon)
@@ -667,6 +686,9 @@ def showPlot(reset):
     ax.set_ylim((0, height))
 
     for i in range(len(nodes)):
+        if nodes[i].traffic() > 4:
+            nodes[i].graphic = plt.Circle(
+                (nodes[i].x, nodes[i].y), size, fill=True, color='red')
         for j in range(len(nodes[i].connectionLines)):
             ax.add_line(nodes[i].connectionLines[j])
         ax.add_artist(nodes[i].graphic)
