@@ -117,12 +117,13 @@ class myNode(object):
         self.sentBeacon = 0
         self.totalTOA = 0
         self.outOfRange = False
+        self.color = 'blue'
 
         # graphics for node
         global graphics
         if (graphics == 1):
             self.graphic = plt.Circle(
-                (self.x, self.y), size, fill=True, color='blue')
+                (self.x, self.y), size, fill=True, color=self.color)
 
         self.packetList.append(myPacket(random.randint(1, 51),
                                         random.randint(7, 12),
@@ -140,6 +141,7 @@ class myNode(object):
         print("Connections:")
         print(*self.connectionList, sep="\n")
         self.printConnections()
+        print("amount = ",self.traffic())
         print()
 
     def addPacket(self, packet):
@@ -186,6 +188,21 @@ class myNode(object):
         for i in range(len(self.connectionList)):
             if self.connectionList[i]['id'] == node.id: result = True
         return result
+
+    def traffic(self, amount=0):
+        for i in range(len(nodes)):
+            otherNode = nodes[i]
+            if otherNode is not self:
+                if self.isInConnections(otherNode):
+                    if self.numberOfHops < otherNode.numberOfHops:
+                        if len(otherNode.connectionList) > 1:
+                            amount = otherNode.traffic(amount)
+                            amount = amount + 1
+                        else:
+                            amount = amount + 1
+        return amount
+
+
 
     # def sendBeacon(self, env):
     #     TOA = self.calcTOA(self.beacon)
@@ -607,6 +624,9 @@ def showPlot(reset):
     ax.set_ylim((0, height))
 
     for i in range(len(nodes)):
+        if nodes[i].traffic() > 4:
+            nodes[i].graphic = plt.Circle(
+                (nodes[i].x, nodes[i].y), size, fill=True, color='red')
         for j in range(len(nodes[i].connectionLines)):
             ax.add_line(nodes[i].connectionLines[j])
         ax.add_artist(nodes[i].graphic)
