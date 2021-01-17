@@ -71,8 +71,7 @@ def checkSignal(recNode):
 
     # go through all nodes
     # return higest RSSI value for recNode
-    for i in range(len(nodes)):
-        otherNode = nodes[i]
+    for otherNode in nodes:
         if otherNode is not recNode:
             RSSID = calcRSSI(otherNode, recNode)
             if RSSID[0] > highestRSSI[1] and otherNode.beacon is not None:
@@ -91,13 +90,15 @@ def checkSignal(recNode):
 def checkOutOfRange(recNode):
     outOfRange = False
     highestRSSI = checkSignal(recNode)
-    bestconNode = nodes[highestRSSI[0]]
-    dist = bestconNode.calcDistToOther(recNode)
-
-    print("highestRSSI for node", recNode.id, highestRSSI[1], "with node", bestconNode.id)
-    if highestRSSI[1] < bestconNode.beacon.RXsensi:
+    if highestRSSI[0] == 0 and highestRSSI[1] == -200:
         outOfRange = True
+    else:
+        bestconNode = nodes[highestRSSI[0]]
+        dist = bestconNode.calcDistToOther(recNode)
 
+        print("highestRSSI for node", recNode.id, highestRSSI[1], "with node", bestconNode.id)
+        if highestRSSI[1] < bestconNode.beacon.RXsensi:
+            outOfRange = True
     return outOfRange
 
 class myNode(object):
@@ -154,6 +155,7 @@ class myNode(object):
             return dist
         else:
             print("ERROR: Cannot calculate distance from self to self")
+            sys.exit(-1)
 
     def sendPacket(self, recNode, packet):
         # check if packet argument is in packetlist of self
@@ -188,12 +190,11 @@ class myNode(object):
 
     def printPossibleConnections(self):
         print("node", self.id, "can be connected to:")
-        for i in range(len(nodes)):
-            otherNode = nodes[i]
-            if otherNode is not self and self.beacon is not None:
+        for otherNode in nodes:
+            if otherNode is not self:
                 RSSID = calcRSSI(self, otherNode)
-                if RSSID[0] > self.beacon.RXsensi:
-                    print("node", otherNode.id, "RSSI: {:.2f}".format(RSSID[0]))
+                if RSSID[0] > -135:
+                    print("node", otherNode.id, "RSSI: {:.2f},".format(RSSID[0]), "dist: {:.2f}".format(RSSID[1]))
 
     def isInConnections(self, node):
         result = False
@@ -232,59 +233,6 @@ class myNode(object):
         """
         return distance * airAttenuation
         #print("RSSI after atmos atten:", self.RXsensi, "dist", distance) ## DEBUG
-
-    # def sendBeacon(self, env):
-    #     TOA = self.calcTOA(self.beacon)
-    #
-    #     yield env.timeout(TOA)
-    #
-    #     RXsensi = -174 + 10 * math.log(self.beacon.BW, 10) + SNRvals[self.beacon.SF - 7]
-    #
-    #     highestRSSI = [0,-200]
-    #
-    #     self.sentBeacon += 1
-    #     self.totalTOA += TOA
-    #
-    #     print("Sending beacon at", env.now, "s, from node", self.id, "NoH", self.numberOfHops)
-    #     for i in range(len(self.connectionList)):
-    #         nodeToRec = nodes[self.connectionList[i]['id']]
-    #         RSSIToNodeFromSelf = self.connectionList[i]['RSSI']
-    #
-    #         if (nodeToRec.beacon is None) and (RSSIToNodeFromSelf > RXsensi):
-    #             # go through nodes
-    #             # check if RSSI between other node and node to receive beacon is
-    #             # higher than RSSI between this node and node to receive
-    #             print("Looking at node", nodeToRec.id)
-    #             for j in range(len(nodes)):
-    #                 otherNode = nodes[j]
-    #                 if otherNode is not self:
-    #                     for k in range(len(otherNode.connectionList)):
-    #                         if otherNode.connectionList[k]['id'] is nodeToRec.id:
-    #                             RSSIToNodeFromOtherNode = otherNode.connectionList[k]['RSSI']
-    #                             print("\tOther node id:", otherNode.id, ", RSSI:\t", RSSIToNodeFromOtherNode)
-    #                             print("\tOwn RSSI:\t\t\t", RSSIToNodeFromSelf)
-    #                             if RSSIToNodeFromOtherNode > RSSIToNodeFromSelf:
-    #                                 print("\tOther node has setter signal")
-    #                                 if RSSIToNodeFromOtherNode > highestRSSI[1]:
-    #                                     highestRSSI = [otherNode.id, RSSIToNodeFromOtherNode]
-    #
-    #             if highestRSSI[1] < RSSIToNodeFromSelf:
-    #                 # self has best signal -> send
-    #                 print("\tNode", nodeToRec.id, "received beacon, RSSI:", RSSIToNodeFromSelf)
-    #                 connections.append(nodeToRec.addConnectionLines(self))
-    #
-    #                 nodeToRec.numberOfHops = self.numberOfHops+1
-    #                 nodeToRec.beacon = myBeacon(self.beacon.PL, self.beacon.SF, self.beacon.CR, self.beacon.BW)
-    #             else:
-    #                 print("\tNode", highestRSSI[0], "should send to node", nodeToRec.id)
-    #
-    #         elif (nodeToRec.beacon is None) and (RSSIToNodeFromSelf < RXsensi): # RSSI too low
-    #             print("Node", nodeToRec.id, "failed  to receive beacon, RSSI too low")
-    #             print("RX sensitivity:\t", RXsensi)
-    #             print("RSSI:\t\t", RSSIToNodeFromSelf)
-    #         else:
-    #             print("Node", nodeToRec.id, "already received beacon")
-    #     print()
 
 class myGateway(object):
     def __init__(self, id, CF, x, y):
@@ -572,27 +520,6 @@ def beaconFromNode(sendNode):
 
                     print("\tNode", recNode.id, "received beacon, RSSI:",
                           RSSIToRecNodeFromSendNode)
-
-                # elif sendNode.isInConnections(bestconNode):
-                #     print("\tNot best connection with this node, but less hops")
-                #
-                #     if bestconNode not in sendNode.connectionList:
-                #         # add connections to connection lists of nodes
-                #         # sending node to receiver node
-                #         sendNode.addConnection(
-                #             recNode, RSSIToRecNodeFromSendNode, RSSID[1])
-                #
-                #         # add graphic lines from recNode to sendnode
-                #         sendNode.addConnectionLine(recNode)
-                #
-                #     if bestconNode not in recNode.connectionList:
-                #         # receiver node to sending node
-                #         recNode.addConnection(
-                #             sendNode, RSSIToRecNodeFromSendNode, RSSID[1])
-                #
-                #         # Set number of hops from recNode to sendnode
-                #         recNode.numberOfHops = sendNode.numberOfHops + 1
-                #         recNode.beacon = sendNode.beacon
                 else:  # other node has better connection to recNode
                     print("\tOther node has better signal, not sending")
                     print("\tNode", highestRSSID[0],
@@ -609,6 +536,7 @@ def beaconFromNodes():
 
     # go through nodes with NoH = 1, aka in connection with GW
     while not beaconDone:
+        print("hallo")
         for node in nodes:
             if node.numberOfHops == NoH and node.beacon is not None:
                 # send beacon from the nodes that received a beacon from GW or other Node
@@ -669,8 +597,8 @@ axrandpacket = plt.axes([0.7, 0.9, 0.2, 0.075])
 
 # parameters for plot and node size
 # width and height is in meters.
-width = 10000
-height = 10000
+width = 50000
+height = 50000
 size = width / 250
 
 # 1 to show nodes in plot
@@ -697,7 +625,7 @@ TX = [22, 22, 22, 23,                                       # RFO/PA0: -2..1
 receiverModeCurrent = 0.0103
 V = 3.0                                                     # voltage XXX
 
-airAttenuation = 0.01
+airAttenuation = 0.005
 
 # get arguments
 if len(sys.argv) >= 3:
