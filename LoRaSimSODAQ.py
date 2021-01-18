@@ -96,7 +96,7 @@ def checkOutOfRange(recNode):
         bestconNode = nodes[highestRSSI[0]]
         dist = bestconNode.calcDistToOther(recNode)
 
-        print("highestRSSI for node", recNode.id, highestRSSI[1], "with node", bestconNode.id)
+        #print("highestRSSI for node", recNode.id, highestRSSI[1], "with node", bestconNode.id) ##DEBUG
         if highestRSSI[1] < bestconNode.beacon.RXsensi:
             outOfRange = True
     return outOfRange
@@ -161,7 +161,7 @@ class myNode(object):
         # check if packet argument is in packetlist of self
         if packet in self.packetList:
             # show some info about packet in console
-            packet.printInfo()
+            #packet.printInfo()
 
             # add time on air to nodes
             self.totalTOA += packet.TOA
@@ -430,25 +430,39 @@ class Index(object):
             for i in randNode.connectionList:
                 print("Node:", i.get('Node_Gateway').id, "RSSI:",
                       i.get('RSSI'), "distance:", i.get('dist'))
-            for i in randNode.connectionList:
-                recNode = i.get('Node_Gateway')
-                if recNode.numberOfHops < randNode.numberOfHops:
-                    print("This is the node to send to next:", recNode.id) ## DEBUG
-                    randPacket.linkBudget = randPacket.RXsensi - randNode.TXpower
-                    randNode.sendPacket(recNode, randPacket)
+            sendToGW(randNode, randPacket)
         else:
             print("randNode", randNode.id, "has no node to send to")
 
+def sendToGW(node, packet):
+    atGateway = False
+
+    while not atGateway:
+        for i in node.connectionList:
+            recNode = i.get('Node_Gateway')
+
+            if recNode.numberOfHops < node.numberOfHops:
+                print("This is the node to send to next:", recNode.id) ## DEBUG
+                packet.linkBudget = packet.RXsensi - node.TXpower
+                node.sendPacket(recNode, packet)
+                node = recNode
+
+            if isinstance(recNode, myGateway):
+                atGateway = True
+                print("packet received at Gateway")
+                break
+
+
 def beaconFromGW(GW):
     if GW.beacon is not None:
-        print("Sending beacon from gateway", GW.id)
+        # print("Sending beacon from gateway", GW.id)                                   ##DEBUG
         for i in range(len(nodes)):
             node = nodes[i]
             # calc RSSI according to distance between GW and node
             RSSID = calcRSSI(GW, node)
 
             if RSSID[0] > GW.beacon.RXsensi and node.beacon is None:  # node received beacon
-                print("Node", node.id, " received beacon, RSSI:", RSSID[0])
+                # print("Node", node.id, " received beacon, RSSI:", RSSID[0])           ##DEBUG
 
                 # add node to list of connections of GW and other way around
                 # gateway to node
@@ -463,23 +477,21 @@ def beaconFromGW(GW):
                 # add graphic lines from node to GW
                 node.addConnectionLine(GW)
 
-            else:  # node didnt receive beacon
-                print("Node", node.id,
-                      " failed  to receive beacon, RSSI:", RSSID[0])
+            #else:  # node didnt receive beacon
+                # print("Node", node.id," failed  to receive beacon, RSSI:", RSSID[0])  ##DEBUG
 
         GW.sentBeacon += 1
         return 1
     else:
-        print("ERROR: No beacon found in gateway:", GW.id)
+        # print("ERROR: No beacon found in gateway:", GW.id)                            ##DEBUG
         return 0
 
 def beaconFromNode(sendNode):
-    print("Sending beacon from node", sendNode.id,
-          "NoH:", sendNode.numberOfHops)
+    #print("Sending beacon from node", sendNode.id,
+    #      "NoH:", sendNode.numberOfHops)  ##DEBUG
     # go through all nodes
-    for i in range(len(nodes)):
-        recNode = nodes[i]
-        print("Looking at node", recNode.id)
+    for recNode in nodes:
+        #print("Looking at node", recNode.id) ##DEBUG
         # check if node is not same as sending node and node has no beacon yet
         if sendNode.id is not recNode.id and recNode.beacon is None:
             # calc RSSI according to distance between sending and receiving node
@@ -494,10 +506,10 @@ def beaconFromNode(sendNode):
                 bestconNode = nodes[highestRSSID[0]]
 
                 if bestconNode.id == sendNode.id or sendNode.isInConnections(bestconNode):
-                    if sendNode.isInConnections(bestconNode):
-                        print("\tNot best connection with this node, but less hops")
-                    else:
-                        print("\tBest connection with this node")
+                    #if sendNode.isInConnections(bestconNode):
+                        #print("\tNot best connection with this node, but less hops")
+                    #else:
+                        #print("\tBest connection with this node")                      ##DEBUG
                     # sendNode has best connection or is node with least hops -> send to recNode
 
                     if bestconNode not in sendNode.connectionList:
@@ -518,17 +530,17 @@ def beaconFromNode(sendNode):
                         recNode.numberOfHops = sendNode.numberOfHops + 1
                         recNode.beacon = sendNode.beacon
 
-                    print("\tNode", recNode.id, "received beacon, RSSI:",
-                          RSSIToRecNodeFromSendNode)
-                else:  # other node has better connection to recNode
-                    print("\tOther node has better signal, not sending")
-                    print("\tNode", highestRSSID[0],
-                          "should send to node", recNode.id)
-            else:  # RSSI too low
-                print("\tNode", recNode.id,
-                      "failed to receive beacon, RSSI too low")
-                print("\tRX sensitivity:\t", sendNode.beacon.RXsensi)
-                print("\tRSSI:\t\t\t", RSSIToRecNodeFromSendNode)
+                    #print("\tNode", recNode.id, "received beacon, RSSI:",
+                    #      RSSIToRecNodeFromSendNode)                       ##DEBUG
+                #else:  # other node has better connection to recNode
+                    #print("\tOther node has better signal, not sending")
+                    #print("\tNode", highestRSSID[0],
+                    #      "should send to node", recNode.id)               ##DEBUG
+            #else:  # RSSI too low
+                #print("\tNode", recNode.id,
+                #      "failed to receive beacon, RSSI too low")
+                #print("\tRX sensitivity:\t", sendNode.beacon.RXsensi)
+                #print("\tRSSI:\t\t\t", RSSIToRecNodeFromSendNode)          ##DEBUG
 
 def beaconFromNodes():
     NoH = 1
@@ -536,12 +548,10 @@ def beaconFromNodes():
 
     # go through nodes with NoH = 1, aka in connection with GW
     while not beaconDone:
-        print("hallo")
         for node in nodes:
             if node.numberOfHops == NoH and node.beacon is not None:
                 # send beacon from the nodes that received a beacon from GW or other Node
                 beaconFromNode(node)
-                print()
 
         # next hop
         NoH += 1
@@ -550,7 +560,7 @@ def beaconFromNodes():
         # check if beacon is sent to all nodes that were able to receive it
         for node in nodes:
             if node.beacon is not None: # node has a beacon and is done.
-                print("node", node.id, "is done with beacon, received")
+                #print("node", node.id, "is done with beacon, received") #DEBUG
                 nodesDone += 1
             elif node.numberOfHops == 0:
                 # check if this node can connect to a node with a beacon next hop
@@ -558,7 +568,7 @@ def beaconFromNodes():
             if node.outOfRange:
                 # node has no possibility to connect to any nodes with a beacon
                 # this means this node is done.
-                print("node", node.id, "is out of range of all nodes")
+                #print("node", node.id, "is out of range of all nodes") #DEBUG
                 nodesDone += 1
 
         if nodesDone == len(nodes):
@@ -625,7 +635,7 @@ TX = [22, 22, 22, 23,                                       # RFO/PA0: -2..1
 receiverModeCurrent = 0.0103
 V = 3.0                                                     # voltage XXX
 
-airAttenuation = 0.005
+airAttenuation = 0.003
 
 # get arguments
 if len(sys.argv) >= 3:
