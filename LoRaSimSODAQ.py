@@ -433,6 +433,7 @@ class Index(object):
             sendToGW(randNode, randPacket)
         else:
             print("randNode", randNode.id, "has no node to send to")
+            callback.sendRandomPacket(event)
 
 def sendToGW(node, packet):
     atGateway = False
@@ -592,11 +593,11 @@ def getRandomPacket():
         SF = 7
 
     if bandwidth == 125000 and SF == 9:
-        packetLength = random.randint(0, 115)
+        packetLength = 100
     elif bandwidth == 125000 and SF <= 8 or bandwidth == 250000 and SF == 7:
-        packetLength = random.randint(0, 222)
+        packetLength = 100
     else:
-        packetLength = random.randint(0, 51)
+        packetLength = 51
 
     return myPacket(packetLength, SF, codingRate, bandwidth, header, lowDataRateOpt)
 
