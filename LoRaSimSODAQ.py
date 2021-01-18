@@ -121,6 +121,7 @@ class myNode(object):
         self.totalTR = 0
         self.outOfRange = False
         self.color = 'blue'
+        self.overflow = False
 
         if (graphics == 1):
             self.graphic = plt.Circle(
@@ -182,19 +183,42 @@ class myNode(object):
     def addConnectionLine(self, other):
         self.connectionLines.append(getConnection(self, other))
 
+    def removeConnectionLine(self, other):
+        for i in other.connectionLines:
+            xdata,ydata = i.get_data()
+            if xdata[1] == self.x and ydata[1] == self.y:
+                try:
+                    other.connectionLines.remove(i)
+                except ValueError:
+                    self.connectionLines.remove(i)
+                # print("removed line")
+            # print(xdata[1], self.x)
+            # print(ydata[1], self.y)
+            # print()
+
     def addConnection(self, Node_Gateway, RSSI, dist):
         dict = {'Node_Gateway': Node_Gateway, 'RSSI': RSSI, 'dist': dist}
         self.connectionList.append(dict)
         self.connectionList = sorted(
             self.connectionList, key=lambda i: i['RSSI'], reverse=True)
 
+    def removeConnection(self, Node_Gateway):
+        for i in self.connectionList:
+            if i.get('Node_Gateway') is Node_Gateway:
+                self.connectionList.remove(i)
+
+
     def printPossibleConnections(self):
-        print("node", self.id, "can be connected to:")
-        for otherNode in nodes:
+        poslist = []
+        # print("node", self.id, "can be connected to:")
+        for i in range(len(nodes)):
+            otherNode = nodes[i]
             if otherNode is not self:
                 RSSID = calcRSSI(self, otherNode)
-                if RSSID[0] > -135:
-                    print("node", otherNode.id, "RSSI: {:.2f},".format(RSSID[0]), "dist: {:.2f}".format(RSSID[1]))
+                if RSSID[0] > self.beacon.RXsensi:
+                    # print("node", otherNode.id, "RSSI:", RSSID[0])
+                    poslist.append(otherNode)
+        return poslist
 
     def isInConnections(self, node):
         result = False
@@ -216,6 +240,29 @@ class myNode(object):
                         else:
                             amount = amount + 1
         return amount
+
+    def reroute(self):
+        for i in range(len(nodes)):
+            otherNode = nodes[i]
+            if otherNode is not self:
+                if self.isInConnections(otherNode):
+                    if self.numberOfHops > otherNode.numberOfHops:
+                        if otherNode.overflow is True:
+                            poscon = self.printPossibleConnections()
+                            for i in poscon:
+                                if i is not self:
+                                    if i is not otherNode:
+                                        if self.numberOfHops > i.numberOfHops:
+                                            if i.traffic() <= self.traffic():
+                                                temp = calcRSSI(self, i)
+                                                self.addConnection(i, temp[0], temp[1])
+                                                i.addConnection(self, temp[0], temp[1])
+                                                self.removeConnection(otherNode)
+                                                otherNode.removeConnection(self)
+                                                self.addConnectionLine(i)
+                                                self.removeConnectionLine(otherNode)
+                                                print("reroute!!")
+
 
     def atmosphericAttenuation(self, distance):
         """
@@ -625,7 +672,7 @@ TX = [22, 22, 22, 23,                                       # RFO/PA0: -2..1
 receiverModeCurrent = 0.0103
 V = 3.0                                                     # voltage XXX
 
-airAttenuation = 0.005
+airAttenuation = 0.003
 
 # get arguments
 if len(sys.argv) >= 3:
@@ -659,8 +706,28 @@ def showPlot(reset):
 
     for i in range(len(nodes)):
         if nodes[i].traffic() > 4:
+            # nodes[i].graphic = plt.Circle(
+            #     (nodes[i].x, nodes[i].y), size, fill=True, color='red')
+            nodes[i].overflow = True
+            print("overflow!")
+        else:
+            # nodes[i].graphic = plt.Circle(
+            #     (nodes[i].x, nodes[i].y), size, fill=True, color='blue')
+            nodes[i].overflow = False
+
+    for i in range(len(nodes)):
+        nodes[i].reroute()
+
+    for i in range(len(nodes)):
+        if nodes[i].traffic() > 4:
             nodes[i].graphic = plt.Circle(
                 (nodes[i].x, nodes[i].y), size, fill=True, color='red')
+            nodes[i].overflow = True
+        else:
+            nodes[i].graphic = plt.Circle(
+                (nodes[i].x, nodes[i].y), size, fill=True, color='blue')
+            nodes[i].overflow = False
+
         for j in range(len(nodes[i].connectionLines)):
             ax.add_line(nodes[i].connectionLines[j])
         ax.add_artist(nodes[i].graphic)
