@@ -516,9 +516,7 @@ class Index(object):
             callback.sendRandomPacket(event)
             for node in nodes:
                 if not node.outOfRange:
-                    #print(node.battery)
-                    # node.calcEnergyUsage()
-                    # node.battery = node.batteryCap - node.energyUsed
+                    # print(node.battery)                                ##DEBUG
                     if node.battery <= 0:
                         batteryEmpty = True
                         print("Battery of node", node.id, "is empty")
@@ -526,24 +524,24 @@ class Index(object):
                         break
 
     def sendRandomPacket(self, event):
-        # get random packet to send
-        randPacket = getRandomPacket()
+        """get packet to send"""
+        packet = getPacket(spreadingFactorArg, 1, BW[0], 0, packetSizeArg)
 
-        # pick random node to send the packet and add the randPacket to its list
-        randNode = nodes[random.randint(0, nrNodes) - 1]
-        randNode.addPacket(randPacket)
+        """pick random node to send the packet and add the randPacket to its list"""
+        randNode = nodes[random.randint(0, len(nodes)) - 1]
+        randNode.addPacket(packet)
 
-        # send packet to a node in randNode's connection list
-        # can only be done if:
-        # randNode has a connection
-        # the connection is to a node with less number of hops
+        """send packet to a node in randNode's connection list
+           can only be done if:
+           randNode has a connection
+           the connection is to a node with less number of hops"""
         if randNode.connectionList:
             # print out randNode's connections                          ## DEBUG
             # print("node", randNode.id, "nodes to send to", )
             # for i in randNode.connectionList:
                 # print("Node:", i.get('Node_Gateway').id, "RSSI:",
                       # i.get('RSSI'), "distance:", i.get('dist'))
-            sendToGW(randNode, randPacket)
+            sendToGW(randNode, packet)
         else:
             # print("randNode", randNode.id, "has no node to send to")   ##DEBUG
             callback.sendRandomPacket(event)
@@ -674,7 +672,8 @@ def beaconFromNodes():
         nodesDone = 0
         """check if beacon is sent to all nodes that were able to receive it"""
         for node in nodes:
-            if node.beacon is not None: """node has a beacon and is done."""
+            if node.beacon is not None:
+                """node has a beacon and is done."""
                 #print("node", node.id, "is done with beacon, received") #DEBUG
                 nodesDone += 1
             elif node.numberOfHops == 0:
@@ -694,7 +693,7 @@ def beaconFromNodes():
 def getPacket(SF, CR, BW, H, PL):
     """turn lowDataRateOpt for SF is higher or equal to 11
        rule according to EU868 band"""
-    if bandwidth == 125000 and SF >= 11:
+    if BW == 125000 and SF >= 11:
         lowDataRateOpt = 1
     else:
         lowDataRateOpt = 0
@@ -743,31 +742,11 @@ def showPlot(reset):
     ax.set_xlim((0, width))
     ax.set_ylim((0, height))
 
-    for k in range(0, 3):
-        for i in range(len(nodes)):
-            if nodes[i].traffic() > 4:
-                nodes[i].overflow = True
-                print("overflow!")
-            else:
-                nodes[i].overflow = False
-
-            nodes[i].reroute()
-
-    for i in range(len(nodes)):
-        if nodes[i].traffic() > 4:
-            nodes[i].graphic = plt.Circle(
-                (nodes[i].x, nodes[i].y), size, fill=True, color='red')
-            nodes[i].overflow = True
-        else:
-            nodes[i].graphic = plt.Circle(
-                (nodes[i].x, nodes[i].y), size, fill=True, color='blue')
-            nodes[i].overflow = False
-
-        for j in range(len(nodes[i].connectionLines)):
-            ax.add_line(nodes[i].connectionLines[j])
-        ax.add_artist(nodes[i].graphic)
-        ax.annotate(nodes[i].id, (nodes[i].x + width /
-                                  400, nodes[i].y + width / 400), size=6)
+    for node in nodes:
+        for connection in node.connectionLines:
+            ax.add_line(connection)
+        ax.add_artist(node.graphic)
+        ax.annotate(node.id, (node.x + width /400, node.y + width / 400), size=6)
     ax.add_artist(GW.graphic)
 
     cid = fig.canvas.mpl_connect('button_press_event', onclick)
@@ -778,7 +757,7 @@ def showPlot(reset):
         breset.on_clicked(callback.reset)
         brandpacket = Button(axrandpacket, 'Random packet')
         brandpacket.on_clicked(callback.sendRandomPacket)
-        bsendtillempty = Button(axsendtillempty, 'Send till empty')
+        bsendtillempty = Button(axsendtillempty, 'Send untill empty')
         bsendtillempty.on_clicked(callback.randomPacketTillBattEmpty)
         plt.show()
     print("End program")
@@ -794,8 +773,8 @@ returns:
 None"""
 def setup(reset):
     """add new nodes to nodes list"""
-    for i in range(0, nrNodes):
-        node = myNode(i, TXpowerArg, carrierFrequency)
+    for i in range(0, nrNodesArg):
+        node = myNode(i, TXpowerArg, 868)
         nodes.append(node)
 
     """add beacon to the GW and send it to nodes"""
@@ -804,6 +783,20 @@ def setup(reset):
     if beaconFromGW(GW):
         print("Succesfully sent beacon\n")
         beaconFromNodes()
+
+        for node in nodes:
+            if node.traffic() > 4:
+                node.overflow = True
+                print("overflow!")
+            else:
+                node.overflow = False
+            node.reroute()
+
+            if node.overflow:
+                node.graphic = plt.Circle((node.x, node.y), size, fill=True, color='red')
+            else:
+                node.graphic = plt.Circle((node.x, node.y), size, fill=True, color='blue')
+
         if reset:
             showPlot(True)
         else:
@@ -854,20 +847,26 @@ V = 3.3                                                     # voltage XXX
 airAttenuation = 0.003
 
 """get arguments"""
-if len(sys.argv) >= 3:
-    nrNodes = int(sys.argv[1])
-    TXpowerArg = int(sys.argv[2])
-    carrierFrequency = int(sys.argv[3])
+if len(sys.argv) >= 7:
+    nrNodesArg          = int(sys.argv[1])
+    TXpowerArg          = int(sys.argv[2])
+    spreadingFactorArg  = int(sys.argv[3])
+    batteryCapacityArg  = int(sys.argv[4])
+    packetSizeArg       = int(sys.argv[5])
+    periodArg           = int(sys.argv[6])
 
-    print("Number of nodes: ", nrNodes)
-    print("TXpower: ", TXpowerArg)
-    print("CarrierFrequency: ", carrierFrequency)
+    print("Number of nodes: \t",  nrNodesArg)
+    print("TX power: \t\t",         TXpowerArg)
+    print("Spreading factor: \t", spreadingFactorArg)
+    print("Battery capacity: \t", batteryCapacityArg)
+    print("Packet size: \t\t",      packetSizeArg)
+    print("Period: \t\t",           periodArg)
 else:
-    print("usage: ./loraDir <amount of nodes> <TXpower> <carrierFrequency>")
+    print("usage: ./LoRaSimSODAQ.py <numberOfNodes> <TXpower> <spreadingFactor> <batteryCapacity> <packetSize> <period>")
     sys.exit(-1)
 
 """start with making a new gateway"""
-GW = myGateway("G0", carrierFrequency, width / 2, height / 2)
+GW = myGateway("G0", 868, width / 2, height / 2)
 
 """add callback funcionality"""
 callback = Index()
