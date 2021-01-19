@@ -124,7 +124,7 @@ class myNode(object):
         self.outOfRange = False
         self.color = 'blue'
         self.overflow = False
-        self.batteryCap = (1000*V) / 1000
+        self.batteryCap = (5400*V) / 1000
         self.battery = self.batteryCap
 
         if (graphics == 1):
