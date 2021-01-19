@@ -14,6 +14,12 @@ from matplotlib.widgets import Button
 import numpy as np
 import os
 
+"""Func: onclick(event)
+Params:
+event             - event object
+excecutes a certain function based on where the user clicks inside the plot.
+returns:
+None"""
 def onclick(event):
     if event.xdata is not None:
         posx = round(event.xdata)
@@ -29,16 +35,15 @@ def onclick(event):
             for node in nodes:
                 if posx >= node.x - size and posx <= node.x + size and\
                    posy >= node.y - size and posy <= node.y + size:
-                    node.calcEnergyUsage()
                     node.printInfo()
 
-# Func: calcRSSI(sendNode, recNode)
-# Params:
-# sending node      - myNode object
-# receiving node    - myNode object
-# calculates RSSI value between sendNode and recNode
-# returns:
-# list [RSSI, distance between recNode and sendNode]
+"""Func: calcRSSI(sendNode, recNode)
+Params:
+sending node      - myNode object
+receiving node    - myNode object
+calculates RSSI value between sendNode and recNode
+returns:
+list [RSSI, distance between recNode and sendNode]"""
 def calcRSSI(sendNode, recNode):
     distToOther = sendNode.calcDistToOther(recNode)
     FSL = sendNode.calcFreeSpaceLoss(distToOther)
@@ -46,13 +51,13 @@ def calcRSSI(sendNode, recNode):
     RSSI = sendNode.TXpower - FSL - atmosphericAttenuation
     return [RSSI, distToOther]
 
-# Func: getConnection(node1, node2)
-# Params:
-# node1     - myNode object
-# node2     - myNode object
-# Makes a line2D object between the 2 positions of the nodes
-# returns:
-# Line2D object
+"""Func: getConnection(node1, node2)
+Params:
+node1     - myNode object
+node2     - myNode object
+Makes a line2D object between the 2 positions of the nodes
+returns:
+Line2D object"""
 def getConnection(node1, node2):
     point1 = [node1.x, node1.y]
     point2 = [node2.x, node2.y]
@@ -60,17 +65,17 @@ def getConnection(node1, node2):
     yVals = [point1[1], point2[1]]
     return plt.Line2D(xVals, yVals, color='r', linestyle='--', linewidth='.5')
 
-# Func: def checkSignal(recNode)
-# Params:
-# receiving node - myNode object
-# checks which node has best signal with receiving node
-# returns:
-# list [node id, RSSI]
+"""Func: def checkSignal(recNode)
+Params:
+receiving node - myNode object
+checks which node has best signal with receiving node
+returns:
+list [node id, RSSI]"""
 def checkSignal(recNode):
     highestRSSI = [0, -200]
 
-    # go through all nodes
-    # return higest RSSI value for recNode
+    """go through all nodes
+       return hihgest RSSI value for recNode"""
     for otherNode in nodes:
         if otherNode is not recNode:
             RSSID = calcRSSI(otherNode, recNode)
@@ -80,13 +85,13 @@ def checkSignal(recNode):
 
     return highestRSSI
 
-# Func: checkOutOfRange(recNode)
-# Params:
-# receiving node            - myNode object
-# checks if the receiving node is in range of any of the nodes that have
-# received a beacon.
-# returns:
-# outOfRange                - boolean
+"""Func: checkOutOfRange(recNode)
+Params:
+receiving node            - myNode object
+checks if the receiving node is in range of any of the nodes that have
+received a beacon.
+returns:
+outOfRange                - boolean"""
 def checkOutOfRange(recNode):
     outOfRange = False
     highestRSSI = checkSignal(recNode)
@@ -104,36 +109,42 @@ def checkOutOfRange(recNode):
 class myNode(object):
     def __init__(self, id, TXp, CF):
         self.id = id
+        """positional coördinates"""
         self.x = random.randint(0, width)
         self.y = random.randint(0, height)
+        """set transmission power & carrierFrequency(gotten from arguments)"""
+        self.TXpower = TXp
+        self.carrierFrequency = CF
+        """lists for different objects the node has"""
         self.packetList = []
         self.connectionList = []
         self.connectionLines = []
+        """amount of sent/received packets"""
         self.sent = 0
         self.received = 0
-        self.TXpower = TXp
+        """energy variables"""
         self.energyUsed = 0
-        self.carrierFrequency = CF
+        self.batteryCap = (5400*V) / 1000
+        self.battery = self.batteryCap
+        """mesh setup variables"""
         self.beacon = None
         self.numberOfHops = 0
-        self.sentBeacon = 0
+        """time variables"""
         self.totalTOA = 0
         self.totalTR = 0
         self.totalSleepTime = 0
         self.totalCADTime = 0
+        """range/overflow variables"""
         self.outOfRange = False
-        self.color = 'blue'
         self.overflow = False
-        self.batteryCap = (5400*V) / 1000
-        self.battery = self.batteryCap
 
+        """create a matplotlib circle object to use as node graphics"""
         if (graphics == 1):
             self.graphic = plt.Circle(
-                (self.x, self.y), size, fill=True, color=self.color)
+                (self.x, self.y), size, fill=True, color='blue')
 
     def printInfo(self):
-        years = (self.totalTOA / 30) / 365
-        days = ((self.totalTOA/3600)/24) + ((self.totalTR/3600)/24) + ((self.totalSleepTime/3600)/24)
+        days = ((self.totalTOA/3600)/24) + ((self.totalTR/3600)/24) + ((self.totalSleepTime/3600)/24) + ((self.totalCADTime/3600)/24)
         print("id:", self.id)
         print("Node NoH:", self.numberOfHops)
         print("Out of range:", self.outOfRange)
@@ -143,34 +154,15 @@ class myNode(object):
         print("Time spent CAD: {:.2f}".format(self.totalCADTime), "s")
         print("Energy used: {:.2f}".format((1000 * self.energyUsed) / V), "mAh")
         print("Battery left: {:.2f}".format((1000 * self.battery) / V), "mAh")
-        print("{:.0f}".format(years), "Years and {:.2f}".format(days), "days")
+        print("{:.2f}".format(days), "days")
         print("Amount:",self.traffic())
         print("Sent packets:",self.sent)
         print("received packets:",self.sent)
         # print("Connections of node:")
         # for i in self.connectionList:
         #     print("Node:", i.get('Node_Gateway').id, "RSSI: {:.2f},".format(i.get('RSSI')), "distance: {:.2f}".format(i.get('dist')))
-        # self.printPossibleConnections()
+        # self.printPossibleConnections()                               ##DEBUG
         print()
-
-    def calcEnergyUsage(self):
-        if self.totalTOA > 0:
-            totalTXpower = ((TX[self.TXpower + 2]/1000) * V) * (self.totalTOA * 0.000277777778)
-        else:
-            totalTXpower = 0
-        if self.totalTR > 0:
-            totalRXpower = (receiverModeCurrent * V) * (self.totalTR  * 0.000277777778)
-        else:
-            totalRXpower = 0
-        if self.totalSleepTime > 0:
-            totalSleeppower = (sleepModeCurrent * V) * (self.totalSleepTime  * 0.000277777778)
-        else:
-            totalSleeppower = 0
-        if self.totalCADTime > 0:
-            totalCADpower = (CADcurrent * V) * (self.totalCADTime  * 0.000277777778)
-        else:
-            totalCADpower = 0
-        self.energyUsed = totalRXpower + totalTXpower + totalSleeppower + totalCADpower
 
     def addPacket(self, packet):
         self.packetList.append(packet)
@@ -186,30 +178,32 @@ class myNode(object):
             sys.exit(-1)
 
     def sendPacket(self, recNode, packet):
-        # check if packet argument is in packetlist of self
+        """check if packet argument is in packetlist of self"""
         if packet in self.packetList:
-            # show some info about packet in console
-            # packet.printInfo()                                         ##DEBUG
+            #packet.printInfo()                                         ##DEBUG
 
-            # add time on air to nodes
+            """add time on air to nodes"""
             self.totalTOA += packet.TOA
-            self.totalCADTime += ((32/packet.BW)+(pow(2, packet.SF))) + ((packet.SF * pow(2, packet.SF))/1750000)
-            self.totalSleepTime += (packet.TOA/0.01)-packet.TOA
             recNode.totalTR += packet.TOA
 
+            self.battery -= packet.energyCostTX(self)
+            self.energyUsed += packet.energyCostTX(self)
+            #print("TX power:", packet.energyCostTX(self))              ##DEBUG
+            if isinstance(recNode, myNode):
+                recNode.battery -= packet.energyCostRX()
+                recNode.energyUsed += packet.energyCostRX()
+                #print("RX power:", packet.energyCostRX())              ##DEBUG
+
+            """keep track of how many packets are sent/received"""
             self.sent += 1
             recNode.received += 1
 
-            # add packet to recNode packetlist
+            """add packet to recNode packetlist
+               then remove packet from self packetlist
+               and finally add sleeping time after sending a packet"""
             recNode.packetList.append(packet)
-            # remove packet from self packetlist
             self.packetList.remove(packet)
-
-            # self.calcEnergyUsage()
-            # self.battery = self.batteryCap - self.energyUsed
-            # if isinstance(recNode, myNode):
-            #     recNode.calcEnergyUsage()
-            #     recNode.battery = recNode.batteryCap - recNode.energyUsed
+            self.addSleepTime(packet)
         else:
             print("ERROR: Packet is not found at this node")
 
@@ -316,6 +310,34 @@ class myNode(object):
         return distance * airAttenuation
         #print("RSSI after atmos atten:", self.RXsensi, "dist", distance) ## DEBUG
 
+    def addSleepTime(self, packet):
+        """
+        Send every ... minutes. Can make the lifetime
+        of the nodes significantly higher.
+        """
+        # minutes = 15
+        # sleepTime = minutes * 60
+        """
+        send as many times as you can, keeping in mind the 0,01
+        duty cycle for lora, but not the maximum uplink time for
+        LoRaWAN (30 seconds per day).
+        source:
+        https://www.thethingsnetwork.org/forum/t/limitations-data-rate-packet-size-30-seconds-uplink-and-10-messages-downlink-per-day-fair-access-policy-guidelines/1300
+        """
+        sleepTime = (packet.TOA / 0.01) - packet.TOA
+        sleepPower = ((sleepModeCurrent * V) * sleepTime) * 0.000278
+        self.totalSleepTime += sleepTime
+        self.energyUsed += sleepPower
+        self.battery -= sleepPower
+
+    def addCADTime(self, packet):
+        CADTimeRXMode = (32 / packet.BW + packet.Tsymbol)
+        CADTimeProcessingMode = (packet.SF * pow(2, packet.SF)) / (1750000)
+        CADPower = (((CADcurrent * V) * CADTimeRXMode) * 0.000278) + ((((CADcurrent/2) * V) * CADTimeProcessingMode) * 0.000278)
+        self.totalCADTime += CADTimeRXMode + CADTimeProcessingMode
+        self.energyUsed += CADPower
+        self.battery -= CADPower
+
 class myGateway(object):
     def __init__(self, id, CF, x, y):
         self.id = id
@@ -326,7 +348,6 @@ class myGateway(object):
         self.connectionList = []
         self.packetList = []
         self.TXpower = 14
-        self.sentBeacon = 0
         self.totalTOA = 0
         self.totalTR = 0
         self.carrierFrequency = CF
@@ -440,32 +461,19 @@ class myPacket(object):
         self.bitRate = round(min(DR, key=lambda x: abs(
             x - self.SF * (self.BW / (2**self.SF)) * (4 / (4 + self.CR)))))
 
-        # if DR.index(self.bitRate) == 0 or\
-        #         DR.index(self.bitRate) == 1 or\
-        #         DR.index(self.bitRate) == 2:
-        #     self.PL = random.randint(1, 59)
-        # elif DR.index(self.bitRate) == 4 or\
-        #         DR.index(self.bitRate) == 5 or\
-        #         DR.index(self.bitRate) == 6 or\
-        #         DR.index(self.bitRate) == 7:
-        #     self.PL = random.randint(1, 115)
-        # else:
-        #     self.PL = random.randint(1, 222)
-
         thetaPLSF = (8 * self.PL) - (4 * self.SF) + 44 - (20 * self.header)
         gammaSF = 4 * (self.SF - (2 * self.lowDataRateOpt))
         self.Npayload = (
             8 + max(math.ceil(thetaPLSF / gammaSF) * ((4/ (4+self.CR)) + 4), 0))
 
         # Calculate time to send a single symbol
-        Tsymbol = (2**self.SF) / self.BW
+        self.Tsymbol = (2**self.SF) / self.BW
         # Calculate time for preamble and payload
-        Tpreamble = (4.25 + self.Npreamble) * Tsymbol
-        Tpayload = self.Npayload * Tsymbol
+        Tpreamble = (4.25 + self.Npreamble) * self.Tsymbol
+        Tpayload = self.Npayload * self.Tsymbol
         self.TOA = Tpayload + Tpreamble
 
         self.RXsensi = -174 + 10 * math.log(self.BW, 10) + SNRvals[self.SF - 7] + self.NF
-
 
     def printInfo(self):
         print("PL:", self.PL)
@@ -478,9 +486,15 @@ class myPacket(object):
               self.bitRate, "DR", DR.index(self.bitRate))
         print("Nr of symbols packet (bytes):", self.Npayload)
 
-class Index(object):
-    ind = 0
+    def energyCostTX(self, node):
+        totalTXpower = (((TX[node.TXpower + 2]/1000) * V) * (self.TOA)) * 0.000278
+        return totalTXpower
 
+    def energyCostRX(self):
+        totalRXpower = ((receiverModeCurrent * V) * (self.TOA)) * 0.000278
+        return totalRXpower
+
+class Index(object):
     # Func: reset()
     # Params:
     # None
@@ -503,8 +517,8 @@ class Index(object):
             for node in nodes:
                 if not node.outOfRange:
                     #print(node.battery)
-                    node.calcEnergyUsage()
-                    node.battery = node.batteryCap - node.energyUsed
+                    # node.calcEnergyUsage()
+                    # node.battery = node.batteryCap - node.energyUsed
                     if node.battery <= 0:
                         batteryEmpty = True
                         print("Battery of node", node.id, "is empty")
@@ -545,8 +559,9 @@ def sendToGW(node, packet):
                 # print("This is the node to send to next:", recNode.id) ##DEBUG
                 packet.linkBudget = packet.RXsensi - node.TXpower
                 node.sendPacket(recNode, packet)
+                if isinstance(recNode, myNode):
+                    recNode.addCADTime(packet)
                 node = recNode
-
             if isinstance(recNode, myGateway):
                 atGateway = True
                 # print("packet received at Gateway")                    ##DEBUG
@@ -554,32 +569,30 @@ def sendToGW(node, packet):
 
 def beaconFromGW(GW):
     if GW.beacon is not None:
-        # print("Sending beacon from gateway", GW.id)                                   ##DEBUG
+        # print("Sending beacon from gateway", GW.id)                    ##DEBUG
         for i in range(len(nodes)):
             node = nodes[i]
-            # calc RSSI according to distance between GW and node
+            """calc RSSI according to distance between GW and node"""
             RSSID = calcRSSI(GW, node)
 
             if RSSID[0] > GW.beacon.RXsensi and node.beacon is None:  # node received beacon
                 # print("Node", node.id, " received beacon, RSSI:", RSSID[0])           ##DEBUG
 
-                # add node to list of connections of GW and other way around
-                # gateway to node
+                """add node to list of connections of GW and other way around
+                   gateway to node"""
                 GW.addConnection(node, RSSID[0], RSSID[1])
-                # node to gateway
+                """node to gateway"""
                 node.addConnection(GW, RSSID[0], RSSID[1])
 
-                # Set number of hops from GW to node
+                """Set number of hops from GW to node"""
                 node.numberOfHops = GW.numberOfHops + 1
                 node.beacon = GW.beacon
 
-                # add graphic lines from node to GW
+                """add graphic lines from node to GW"""
                 node.addConnectionLine(GW)
 
             #else:  # node didnt receive beacon
                 # print("Node", node.id," failed  to receive beacon, RSSI:", RSSID[0])  ##DEBUG
-
-        GW.sentBeacon += 1
         return 1
     else:
         # print("ERROR: No beacon found in gateway:", GW.id)                            ##DEBUG
@@ -588,19 +601,21 @@ def beaconFromGW(GW):
 def beaconFromNode(sendNode):
     #print("Sending beacon from node", sendNode.id,
     #      "NoH:", sendNode.numberOfHops)  ##DEBUG
-    # go through all nodes
+
+    """go through all nodes"""
     for recNode in nodes:
         #print("Looking at node", recNode.id) ##DEBUG
-        # check if node is not same as sending node and node has no beacon yet
+
+        """check if node is not same as sending node and node has no beacon yet"""
         if sendNode.id is not recNode.id and recNode.beacon is None:
-            # calc RSSI according to distance between sending and receiving node
+            """calc RSSI according to distance between sending and receiving node"""
             RSSID = calcRSSI(sendNode, recNode)
             RSSIToRecNodeFromSendNode = RSSID[0]
 
             if RSSIToRecNodeFromSendNode > sendNode.beacon.RXsensi:  # recNode is able to receive beacon
-                # go through nodes
-                # check if RSSI between other node and node to receive beacon is
-                # higher than RSSI between this node and node to receive
+                """ go through nodes
+                    check if RSSI between other node and node to receive beacon is
+                    higher than RSSI between this node and node to receive"""
                 highestRSSID = checkSignal(recNode)
                 bestconNode = nodes[highestRSSID[0]]
 
@@ -609,23 +624,24 @@ def beaconFromNode(sendNode):
                         #print("\tNot best connection with this node, but less hops")
                     #else:
                         #print("\tBest connection with this node")                      ##DEBUG
-                    # sendNode has best connection or is node with least hops -> send to recNode
+
+                    """sendNode has best connection or is node with least hops -> send to recNode"""
 
                     if bestconNode not in sendNode.connectionList:
-                        # add connections to connection lists of nodes
-                        # sending node to receiver node
+                        """add connections to connection lists of nodes
+                           sending node to receiver node"""
                         sendNode.addConnection(
                             recNode, RSSIToRecNodeFromSendNode, RSSID[1])
 
-                        # add graphic lines from recNode to sendnode
+                        """add graphic lines from recNode to sendnode"""
                         sendNode.addConnectionLine(recNode)
 
                     if bestconNode not in recNode.connectionList:
-                        # receiver node to sending node
+                        """receiver node to sending node"""
                         recNode.addConnection(
                             sendNode, RSSIToRecNodeFromSendNode, RSSID[1])
 
-                        # Set number of hops from recNode to sendnode
+                        """Set number of hops from recNode to sendnode"""
                         recNode.numberOfHops = sendNode.numberOfHops + 1
                         recNode.beacon = sendNode.beacon
 
@@ -645,70 +661,82 @@ def beaconFromNodes():
     NoH = 1
     beaconDone = False
 
-    # go through nodes with NoH = 1, aka in connection with GW
+    """go through nodes with NoH = 1, aka in connection with GW"""
     while not beaconDone:
         for node in nodes:
             if node.numberOfHops == NoH and node.beacon is not None:
-                # send beacon from the nodes that received a beacon from GW or other Node
+                """send beacon from the nodes that received a beacon from GW or other Node"""
                 beaconFromNode(node)
 
-        # next hop
+        """next hop"""
         NoH += 1
 
         nodesDone = 0
-        # check if beacon is sent to all nodes that were able to receive it
+        """check if beacon is sent to all nodes that were able to receive it"""
         for node in nodes:
-            if node.beacon is not None: # node has a beacon and is done.
+            if node.beacon is not None: """node has a beacon and is done."""
                 #print("node", node.id, "is done with beacon, received") #DEBUG
                 nodesDone += 1
             elif node.numberOfHops == 0:
-                # check if this node can connect to a node with a beacon next hop
+                """check if this node can connect to a node with a beacon next hop"""
                 node.outOfRange = checkOutOfRange(node)
             if node.outOfRange:
-                # node has no possibility to connect to any nodes with a beacon
-                # this means this node is done.
+                """node has no possibility to connect to any nodes with a beacon
+                   this means this node is done."""
                 #print("node", node.id, "is out of range of all nodes") #DEBUG
                 nodesDone += 1
 
         if nodesDone == len(nodes):
-            # all nodes either have received a beacon or are out of range.
+            """all nodes either have received a beacon or are out of range."""
             print("End of beacon")
             beaconDone = True
 
+def getPacket(SF, CR, BW, H, PL):
+    """turn lowDataRateOpt for SF is higher or equal to 11
+       rule according to EU868 band"""
+    if bandwidth == 125000 and SF >= 11:
+        lowDataRateOpt = 1
+    else:
+        lowDataRateOpt = 0
+    return myPacket(PL, SF, CR, BW, H, lowDataRateOpt)
+
 def getRandomPacket():
-    SF = 7#random.randint(7, 12)
+    SF = 12#random.randint(7, 12)
     codingRate = 1
     bandwidth = BW[0]#random.choice(BW)
     header = 0
 
+    """turn lowDataRateOpt for SF is higher or equal to 11
+       rule according to EU868 band"""
     if bandwidth == 125000 and SF >= 11:
         lowDataRateOpt = 1
     else:
         lowDataRateOpt = 0
 
-    # Override SF for BW = 250 kHz
+    """Override SF for BW = 250 kHz"""
     if bandwidth == 250000:
         SF = 7
 
+    """packetsize limitations
+       rule according to EU868 band"""
     if bandwidth == 125000 and SF == 9:
         packetLength = 100
     elif bandwidth == 125000 and SF <= 8 or bandwidth == 250000 and SF == 7:
         packetLength = 100
     else:
-        packetLength = 51
+        packetLength = 10
 
     return myPacket(packetLength, SF, codingRate, bandwidth, header, lowDataRateOpt)
 
-# Func: showPlot(reset)
-# Params:
-# reset - boolean
-# Prepares plot and makes window in which to show the figure.
-# If reset = False, the plot will be made for the first time.
-# If reset = True, the plot will be cleared and filled with new data.
-# returns:
-# None
+"""Func: showPlot(reset)
+Params:
+reset - boolean
+Prepares plot and makes window in which to show the figure.
+If reset = False, the plot will be made for the first time.
+If reset = True, the plot will be cleared and filled with new data.
+returns:
+None"""
 def showPlot(reset):
-    # prepare show
     if reset:
         print("reset plot")
         ax.cla()
@@ -755,22 +783,22 @@ def showPlot(reset):
         plt.show()
     print("End program")
 
-# Func: setup(reset)
-# Params:
-# reset - boolean
-# Main program.
-# If reset = False, it's first time setup.
-# If reset = True, all data from nodes and gateway is deleted and is
-# randomly generated again.
-# returns:
-# None
+"""Func: setup(reset)
+Params:
+reset - boolean
+Main program.
+If reset = False, it's first time setup.
+If reset = True, all data from nodes and gateway is deleted and is
+randomly generated again.
+returns:
+None"""
 def setup(reset):
-    # add new nodes to nodes list
+    """add new nodes to nodes list"""
     for i in range(0, nrNodes):
         node = myNode(i, TXpowerArg, carrierFrequency)
         nodes.append(node)
 
-    # add beacon to the GW and send it to nodes
+    """add beacon to the GW and send it to nodes"""
     GW.addBeacon()
 
     if beaconFromGW(GW):
@@ -783,48 +811,49 @@ def setup(reset):
     else:
         sys.exit(-1)
 
-# plot axis variables
+"""plot axis variables"""
 fig, ax = plt.subplots()
 axreset = plt.axes([0.58, 0.9, 0.1, 0.075])
 axrandpacket = plt.axes([0.7, 0.9, 0.2, 0.075])
 axsendtillempty = plt.axes([0.36, 0.9, 0.2, 0.075])
 
-# parameters for plot and node size
-# width and height is in meters.
+"""parameters for plot and node size
+   width and height is in meters."""
 width = 40000
 height = 40000
 size = width / 250
 
-# 1 to show nodes in plot
+"""1 to show nodes in plot"""
 graphics = 1
 
-# list for all nodes
+"""list for all nodes"""
 nodes = []
 connections = []
 
-# list for available bandwidths
+"""list for available bandwidths"""
 BW = [125000, 250000]
-# list with datarates from lora specifications EU 868-870 MHz ISM band
+"""list with datarates from lora specifications EU 868-870 MHz ISM band"""
 DR = [250, 440, 980, 1790, 3125, 5470, 11000]
-# list with SNR values from SX1276/77/78/79 datasheet in dB
+"""list with SNR values from SX1276/77/78/79 datasheet in dB"""
 SNRvals = [-7.5, -10, -12.5, -15, -17.5, -20]
 
-# Transmit consumption in mA from -2 to +20 dBm
+"""Transmit consumption in mA from -2 to +20 dBm"""
 TX = [22, 22, 22, 23,                                       # RFO/PA0: -2..1
       24, 24, 24, 25, 25, 25, 25, 26, 31, 32, 34, 35, 44,   # PA_BOOST/PA1: 2..14
       82, 85, 90,                                           # PA_BOOST/PA1: 15..17
       105, 115, 125]                                        # PA_BOOST/PA1+PA2: 18..20
 
-# current draw in A for receiver mode, band 1, BW = 125, SX1276
+"""current draw in A for receiver mode, band 1, BW = 125, SX1276"""
 receiverModeCurrent = 0.0103
-# current draw in A for sleep mode SX1276
+"""current draw in A for sleep mode SX1276"""
 sleepModeCurrent = 0.0000002
 CADcurrent = 0.006
 V = 3.3                                                     # voltage XXX
 
+"""air attenuation for decreasing signal strength based on distance"""
 airAttenuation = 0.003
 
-# get arguments
+"""get arguments"""
 if len(sys.argv) >= 3:
     nrNodes = int(sys.argv[1])
     TXpowerArg = int(sys.argv[2])
@@ -837,11 +866,11 @@ else:
     print("usage: ./loraDir <amount of nodes> <TXpower> <carrierFrequency>")
     sys.exit(-1)
 
-# start with making a new gateway
+"""start with making a new gateway"""
 GW = myGateway("G0", carrierFrequency, width / 2, height / 2)
 
-# add callback funcionality
+"""add callback funcionality"""
 callback = Index()
 
-# setup simulation for first time.
+"""setup simulation for first time."""
 setup(False)
