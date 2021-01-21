@@ -150,12 +150,12 @@ class myNode(object):
         print("Energy used: {:.2f}".format((1000 * self.energyUsed) / V), "mAh")
         print("Battery left: {:.2f}".format((1000 * self.battery) / V), "mAh")
         print("{:.2f}".format(days), "days")
-        print("Amount of nodes behind:",self.traffic())
+        print("Traffic:",self.traffic(), "nodes behind")
         print("Sent packets:",self.sent)
-        print("received packets:",self.sent)
+        print("received packets:",self.received)
         print("Connections of node:")
         for i in self.connectionList:
-            print("Node:", i.get('Node_Gateway').id, "RSSI: {:.2f},".format(i.get('RSSI')), "dBm", "distance: {:.2f}".format(i.get('dist')), "m")
+            print("Node:", i.get('Node_Gateway').id, "RSSI: {:.2f}".format(i.get('RSSI')), "dBm,", "distance: {:.2f}".format(i.get('dist')), "m")
         self.possibleConnections()                               ##DEBUG
         print()
 
@@ -593,6 +593,7 @@ def sendToGW(node, packet):
                 # print("This is the node to send to next:", recNode.id) ##DEBUG
                 packet.linkBudget = packet.RXsensi - node.TXpower
                 node.sendPacket(recNode, packet)
+
                 if isinstance(recNode, myNode):
                     recNode.addCADTime(packet)
                 node = recNode
