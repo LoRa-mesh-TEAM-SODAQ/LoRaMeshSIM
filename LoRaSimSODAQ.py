@@ -27,10 +27,6 @@ def onclick(event):
 
         if posx >= GW.x - size and posx <= GW.x + size and posy >= GW.y - size and posy <= GW.y + size:
             GW.printInfo()
-        elif posx <= size * 2 and posy >= height - size * 2:
-            reset()
-        elif posx >= size * 2 and posx <= (size * 2) * 2 and posy >= height - size * 2:
-            sendRandomPacket()
         else:
             for node in nodes:
                 if posx >= node.x - size and posx <= node.x + size and\
@@ -87,11 +83,11 @@ def checkSignal(recNode):
 
 """Func: checkOutOfRange(recNode)
 Params:
-receiving node            - myNode object
+receiving node        - myNode object
 checks if the receiving node is in range of any of the nodes that have
 received a beacon.
 returns:
-outOfRange                - boolean"""
+outOfRange            - boolean"""
 def checkOutOfRange(recNode):
     outOfRange = False
     highestRSSI = checkSignal(recNode)
@@ -124,8 +120,7 @@ class myNode(object):
         self.received = 0
         """energy variables"""
         self.energyUsed = 0
-        self.batteryCap = (5400*V) / 1000
-        self.battery = self.batteryCap
+        self.battery = (batteryCapacityArg*V) / 1000
         """mesh setup variables"""
         self.beacon = None
         self.numberOfHops = 0
@@ -155,13 +150,13 @@ class myNode(object):
         print("Energy used: {:.2f}".format((1000 * self.energyUsed) / V), "mAh")
         print("Battery left: {:.2f}".format((1000 * self.battery) / V), "mAh")
         print("{:.2f}".format(days), "days")
-        print("Amount:",self.traffic())
+        print("Amount of nodes behind:",self.traffic())
         print("Sent packets:",self.sent)
         print("received packets:",self.sent)
-        # print("Connections of node:")
-        # for i in self.connectionList:
-        #     print("Node:", i.get('Node_Gateway').id, "RSSI: {:.2f},".format(i.get('RSSI')), "distance: {:.2f}".format(i.get('dist')))
-        # self.printPossibleConnections()                               ##DEBUG
+        print("Connections of node:")
+        for i in self.connectionList:
+            print("Node:", i.get('Node_Gateway').id, "RSSI: {:.2f},".format(i.get('RSSI')), "dBm", "distance: {:.2f}".format(i.get('dist')), "m")
+        self.possibleConnections()                               ##DEBUG
         print()
 
     def addPacket(self, packet):
@@ -235,15 +230,15 @@ class myNode(object):
             if i.get('Node_Gateway') is Node_Gateway:
                 self.connectionList.remove(i)
 
-    def printPossibleConnections(self):
+    def possibleConnections(self):
         poslist = []
-        # print("node", self.id, "can be connected to:")                ##DEBUG
+        print("node", self.id, "can be connected to:")                ##DEBUG
         for i in range(len(nodes)):
             otherNode = nodes[i]
             if otherNode is not self:
                 RSSID = calcRSSI(self, otherNode)
                 if RSSID[0] > self.beacon.RXsensi:
-                    # print("node", otherNode.id, "RSSI:", RSSID[0])    ##DEBUG
+                    print("node", otherNode.id, "RSSI:", RSSID[0])    ##DEBUG
                     poslist.append(otherNode)
         return poslist
 
@@ -271,27 +266,29 @@ class myNode(object):
     def reroute(self):
         for i in range(len(nodes)):
             otherNode = nodes[i]
-            if otherNode is not self:
-                if self.isInConnections(otherNode):
-                    if self.numberOfHops > otherNode.numberOfHops:
-                        if otherNode.overflow is True:
-                            poscon = self.printPossibleConnections()
-                            for i in poscon:
-                                if i is not self:
-                                    if i is not otherNode:
-                                        if self.numberOfHops > i.numberOfHops:
-                                            if i.traffic() <= self.traffic():
-                                                temp = calcRSSI(self, i)
-                                                self.removeConnection(otherNode)
-                                                otherNode.removeConnection(self)
-                                                self.removeConnectionLine(otherNode)
-                                                otherNode.removeConnectionLine(self)
+            if otherNode is not self and\
+               self.isInConnections(otherNode) and\
+               self.numberOfHops > otherNode.numberOfHops and\
+               otherNode.overflow is True:
 
-                                                self.addConnection(i, temp[0], temp[1])
-                                                i.addConnection(self, temp[0], temp[1])
-                                                self.addConnectionLine(i)
+                poscon = self.possibleConnections()
 
-                                                print("reroute node", self.id, "!!")
+                for con in poscon:
+                    if con is not self and\
+                       con is not otherNode and\
+                       self.numberOfHops > con.numberOfHops and\
+                       con.traffic() <= self.traffic():
+
+                        temp = calcRSSI(self, con)
+                        self.removeConnection(otherNode)
+                        otherNode.removeConnection(self)
+                        self.removeConnectionLine(otherNode)
+                        otherNode.removeConnectionLine(self)
+
+                        self.addConnection(con, temp[0], temp[1])
+                        con.addConnection(self, temp[0], temp[1])
+                        self.addConnectionLine(con)
+                        print("reroute node", self.id, "!!")
 
     def atmosphericAttenuation(self, distance):
         """
@@ -495,16 +492,17 @@ class myPacket(object):
         return totalRXpower
 
 class Index(object):
-    # Func: reset()
-    # Params:
-    # None
-    # Is called by the onClick function. Resets all data and makes new plot.
-    # returns:
-    # None
+    """Func: reset()
+      Params:
+      None
+      Is called by the onClick function. Resets all data and makes new plot.
+      returns:
+      None"""
     def reset(self, event):
+        print("Resetting plot...")
         nodes.clear()
 
-        GW = myGateway("G0", carrierFrequency, width / 4, height / 4)
+        GW = myGateway("G0", 868, width / 4, height / 4)
 
         setup(True)
 
@@ -524,6 +522,7 @@ class Index(object):
                         break
 
     def sendRandomPacket(self, event):
+        print("Sending packet...")
         """get packet to send"""
         packet = getPacket(spreadingFactorArg, 1, BW[0], 0, packetSizeArg)
 
@@ -545,6 +544,43 @@ class Index(object):
         else:
             # print("randNode", randNode.id, "has no node to send to")   ##DEBUG
             callback.sendRandomPacket(event)
+
+def getPacket(SF, CR, BW, H, PL):
+    """turn lowDataRateOpt for SF is higher or equal to 11
+       rule according to EU868 band"""
+    if BW == 125000 and SF >= 11:
+        lowDataRateOpt = 1
+    else:
+        lowDataRateOpt = 0
+    return myPacket(PL, SF, CR, BW, H, lowDataRateOpt)
+
+def getRandomPacket():
+    SF = 12#random.randint(7, 12)
+    codingRate = 1
+    bandwidth = BW[0]#random.choice(BW)
+    header = 0
+
+    """turn lowDataRateOpt for SF is higher or equal to 11
+       rule according to EU868 band"""
+    if bandwidth == 125000 and SF >= 11:
+        lowDataRateOpt = 1
+    else:
+        lowDataRateOpt = 0
+
+    """Override SF for BW = 250 kHz"""
+    if bandwidth == 250000:
+        SF = 7
+
+    """packetsize limitations
+       rule according to EU868 band"""
+    if bandwidth == 125000 and SF == 9:
+        packetLength = 100
+    elif bandwidth == 125000 and SF <= 8 or bandwidth == 250000 and SF == 7:
+        packetLength = 100
+    else:
+        packetLength = 10
+
+    return myPacket(packetLength, SF, codingRate, bandwidth, header, lowDataRateOpt)
 
 def sendToGW(node, packet):
     atGateway = False
@@ -597,12 +633,12 @@ def beaconFromGW(GW):
         return 0
 
 def beaconFromNode(sendNode):
-    #print("Sending beacon from node", sendNode.id,
-    #      "NoH:", sendNode.numberOfHops)  ##DEBUG
+    print("Sending beacon from node", sendNode.id,
+         "NoH:", sendNode.numberOfHops)  ##DEBUG
 
     """go through all nodes"""
     for recNode in nodes:
-        #print("Looking at node", recNode.id) ##DEBUG
+        # print("Looking at node", recNode.id) ##DEBUG
 
         """check if node is not same as sending node and node has no beacon yet"""
         if sendNode.id is not recNode.id and recNode.beacon is None:
@@ -618,12 +654,12 @@ def beaconFromNode(sendNode):
                 bestconNode = nodes[highestRSSID[0]]
 
                 if bestconNode.id == sendNode.id or sendNode.isInConnections(bestconNode):
-                    #if sendNode.isInConnections(bestconNode):
-                        #print("\tNot best connection with this node, but less hops")
-                    #else:
-                        #print("\tBest connection with this node")                      ##DEBUG
-
                     """sendNode has best connection or is node with least hops -> send to recNode"""
+                    print("Looking at node", recNode.id) ##DEBUG
+                    if sendNode.isInConnections(bestconNode):
+                        print("\tNot best connection with this node, but less hops")
+                    else:
+                        print("\tBest connection with this node")                      ##DEBUG
 
                     if bestconNode not in sendNode.connectionList:
                         """add connections to connection lists of nodes
@@ -645,9 +681,9 @@ def beaconFromNode(sendNode):
 
                     #print("\tNode", recNode.id, "received beacon, RSSI:",
                     #      RSSIToRecNodeFromSendNode)                       ##DEBUG
-                #else:  # other node has better connection to recNode
-                    #print("\tOther node has better signal, not sending")
-                    #print("\tNode", highestRSSID[0],
+                # else:  # other node has better connection to recNode
+                    # print("\tOther node has better signal, not sending")
+                    # print("\tNode", highestRSSID[0],
                     #      "should send to node", recNode.id)               ##DEBUG
             #else:  # RSSI too low
                 #print("\tNode", recNode.id,
@@ -690,43 +726,6 @@ def beaconFromNodes():
             print("End of beacon")
             beaconDone = True
 
-def getPacket(SF, CR, BW, H, PL):
-    """turn lowDataRateOpt for SF is higher or equal to 11
-       rule according to EU868 band"""
-    if BW == 125000 and SF >= 11:
-        lowDataRateOpt = 1
-    else:
-        lowDataRateOpt = 0
-    return myPacket(PL, SF, CR, BW, H, lowDataRateOpt)
-
-def getRandomPacket():
-    SF = 12#random.randint(7, 12)
-    codingRate = 1
-    bandwidth = BW[0]#random.choice(BW)
-    header = 0
-
-    """turn lowDataRateOpt for SF is higher or equal to 11
-       rule according to EU868 band"""
-    if bandwidth == 125000 and SF >= 11:
-        lowDataRateOpt = 1
-    else:
-        lowDataRateOpt = 0
-
-    """Override SF for BW = 250 kHz"""
-    if bandwidth == 250000:
-        SF = 7
-
-    """packetsize limitations
-       rule according to EU868 band"""
-    if bandwidth == 125000 and SF == 9:
-        packetLength = 100
-    elif bandwidth == 125000 and SF <= 8 or bandwidth == 250000 and SF == 7:
-        packetLength = 100
-    else:
-        packetLength = 10
-
-    return myPacket(packetLength, SF, codingRate, bandwidth, header, lowDataRateOpt)
-
 """Func: showPlot(reset)
 Params:
 reset - boolean
@@ -737,7 +736,6 @@ returns:
 None"""
 def showPlot(reset):
     if reset:
-        print("reset plot")
         ax.cla()
     ax.set_xlim((0, width))
     ax.set_ylim((0, height))
@@ -760,7 +758,6 @@ def showPlot(reset):
         bsendtillempty = Button(axsendtillempty, 'Send untill empty')
         bsendtillempty.on_clicked(callback.randomPacketTillBattEmpty)
         plt.show()
-    print("End program")
 
 """Func: setup(reset)
 Params:
@@ -781,7 +778,7 @@ def setup(reset):
     GW.addBeacon()
 
     if beaconFromGW(GW):
-        print("Succesfully sent beacon\n")
+        print("Succesfully sent beacon")
         beaconFromNodes()
 
         for node in nodes:
@@ -790,7 +787,13 @@ def setup(reset):
                 print("overflow!")
             else:
                 node.overflow = False
+
             node.reroute()
+
+            if node.traffic() > 4:
+                node.overflow = True
+            else:
+                node.overflow = False
 
             if node.overflow:
                 node.graphic = plt.Circle((node.x, node.y), size, fill=True, color='red')
@@ -801,6 +804,7 @@ def setup(reset):
             showPlot(True)
         else:
             showPlot(False)
+        print("\n")
     else:
         sys.exit(-1)
 
