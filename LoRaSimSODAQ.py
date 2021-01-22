@@ -71,7 +71,7 @@ def checkSignal(recNode):
     highestRSSI = [0, -200]
 
     """go through all nodes
-       return hihgest RSSI value for recNode"""
+       return highest RSSI value for recNode"""
     for otherNode in nodes:
         if otherNode is not recNode:
             RSSID = calcRSSI(otherNode, recNode)
@@ -142,13 +142,13 @@ class myNode(object):
         days = ((self.totalTOA/3600)/24) + ((self.totalTR/3600)/24) + ((self.totalSleepTime/3600)/24) + ((self.totalCADTime/3600)/24)
         print("id:", self.id)
         print("Node NoH:", self.numberOfHops)
-        print("Out of range:", self.outOfRange)
-        print("Total time on air: {:.2f}".format(self.totalTOA), "s")
-        print("Time spent receiving: {:.2f}".format(self.totalTR), "s")
-        print("Time spent sleeping: {:.2f}".format(self.totalSleepTime), "s")
-        print("Time spent CAD: {:.2f}".format(self.totalCADTime), "s")
-        print("Energy used: {:.2f}".format((1000 * self.energyUsed) / V), "mAh")
-        print("Battery left: {:.2f}".format((1000 * self.battery) / V), "mAh")
+        # print("Out of range:", self.outOfRange)
+        # print("Total time on air: {:.2f}".format(self.totalTOA), "s")
+        # print("Time spent receiving: {:.2f}".format(self.totalTR), "s")
+        # print("Time spent sleeping: {:.2f}".format(self.totalSleepTime), "s")
+        # print("Time spent CAD: {:.2f}".format(self.totalCADTime), "s")
+        # print("Energy used: {:.2f}".format((1000 * self.energyUsed) / V), "mAh")
+        # print("Battery left: {:.2f}".format((1000 * self.battery) / V), "mAh")
         print("{:.2f}".format(days), "days")
         print("Traffic:",self.traffic(), "nodes behind")
         print("Sent packets:",self.sent)
@@ -175,7 +175,7 @@ class myNode(object):
     def sendPacket(self, recNode, packet):
         """check if packet argument is in packetlist of self"""
         if packet in self.packetList:
-            #packet.printInfo()                                         ##DEBUG
+            # packet.printInfo()                                         ##DEBUG
 
             """add time on air to nodes"""
             self.totalTOA += packet.TOA
@@ -213,11 +213,13 @@ class myNode(object):
     def removeConnectionLine(self, other):
         for i in other.connectionLines:
             xdata,ydata = i.get_data()
+            # print("self",self.x, self.y)
+            # print("other",other.x, other.y)
             if xdata[1] == self.x and ydata[1] == self.y:
-                try:
-                    other.connectionLines.remove(i)
-                except ValueError:
-                    self.connectionLines.remove(i)
+                # print("xdat",xdata)
+                # print("ydat",ydata)
+                other.connectionLines.remove(i)
+                #self.connectionLines.remove(i)
 
     def addConnection(self, Node_Gateway, RSSI, dist):
         dict = {'Node_Gateway': Node_Gateway, 'RSSI': RSSI, 'dist': dist}
@@ -232,13 +234,13 @@ class myNode(object):
 
     def possibleConnections(self):
         poslist = []
-        print("node", self.id, "can be connected to:")                ##DEBUG
+        # print("node", self.id, "can be connected to:")                ##DEBUG
         for i in range(len(nodes)):
             otherNode = nodes[i]
             if otherNode is not self:
                 RSSID = calcRSSI(self, otherNode)
                 if RSSID[0] > self.beacon.RXsensi:
-                    print("node", otherNode.id, "RSSI:", RSSID[0])    ##DEBUG
+                    # print("node", otherNode.id, "RSSI:", RSSID[0])    ##DEBUG
                     poslist.append(otherNode)
         return poslist
 
@@ -251,8 +253,7 @@ class myNode(object):
         return result
 
     def traffic(self, amount=0):
-        for i in range(len(nodes)):
-            otherNode = nodes[i]
+        for otherNode in nodes:
             if otherNode is not self:
                 if self.isInConnections(otherNode):
                     if self.numberOfHops < otherNode.numberOfHops:
@@ -264,31 +265,37 @@ class myNode(object):
         return amount
 
     def reroute(self):
-        for i in range(len(nodes)):
-            otherNode = nodes[i]
-            if otherNode is not self and\
-               self.isInConnections(otherNode) and\
-               self.numberOfHops > otherNode.numberOfHops and\
-               otherNode.overflow is True:
+        for con in self.connectionList:
+            node = con.get("Node_Gateway")
+            if self.numberOfHops > node.numberOfHops and\
+               isinstance(node, myNode) and\
+               node.overflow is True:
+                # print("othernode is overflowed", node.id)              ##DEBUG
+                poscons = self.possibleConnections()
+                bestconNode = None
+                lastRSSI = -200
+                for posconNode in poscons:
+                    if posconNode is not self and\
+                       posconNode is not node and\
+                       self.numberOfHops > posconNode.numberOfHops and\
+                       posconNode.traffic() <= self.traffic():
+                        temp = calcRSSI(self, posconNode)
+                        if lastRSSI < temp[0]:
+                            lastRSSI = temp[0]
+                            bestconNode = posconNode
 
-                poscon = self.possibleConnections()
+                if bestconNode is not None:
+                    # print("New connection:", posconNode.id)            ##DEBUG
+                    self.removeConnection(node)
+                    node.removeConnection(self)
 
-                for con in poscon:
-                    if con is not self and\
-                       con is not otherNode and\
-                       self.numberOfHops > con.numberOfHops and\
-                       con.traffic() <= self.traffic():
+                    self.removeConnectionLine(node)
+                    node.removeConnectionLine(self)
 
-                        temp = calcRSSI(self, con)
-                        self.removeConnection(otherNode)
-                        otherNode.removeConnection(self)
-                        self.removeConnectionLine(otherNode)
-                        otherNode.removeConnectionLine(self)
-
-                        self.addConnection(con, temp[0], temp[1])
-                        con.addConnection(self, temp[0], temp[1])
-                        self.addConnectionLine(con)
-                        print("reroute node", self.id, "!!")
+                    self.addConnection(bestconNode, temp[0], temp[1])
+                    bestconNode.addConnection(self, temp[0], temp[1])
+                    self.addConnectionLine(bestconNode)
+                    print("Reroute node", self.id, "!!")
 
     def atmosphericAttenuation(self, distance):
         """
@@ -434,6 +441,7 @@ class myBeacon(object):
         According to SX1276-7-8-9 datasheet:
         RX input level (pin)  | NF band 1
         Pin <= AgcThresh1     | 7
+        source: https://smartmakers.io/en/lorawan-range-part-1-the-most-important-factors-for-a-good-lorawan-signal-range/
         """
         self.RXsensi = -174 + 10 * math.log(self.BW, 10) + SNRvals[self.SF - 7] + self.NF
 
@@ -522,7 +530,7 @@ class Index(object):
                         break
 
     def sendRandomPacket(self, event):
-        print("Sending packet...")
+        # print("Sending packet...")
         """get packet to send"""
         packet = getPacket(spreadingFactorArg, 1, BW[0], 0, packetSizeArg)
 
@@ -555,7 +563,7 @@ def getPacket(SF, CR, BW, H, PL):
     return myPacket(PL, SF, CR, BW, H, lowDataRateOpt)
 
 def getRandomPacket():
-    SF = 12#random.randint(7, 12)
+    SF = 7#random.randint(7, 12)
     codingRate = 1
     bandwidth = BW[0]#random.choice(BW)
     header = 0
@@ -593,6 +601,7 @@ def sendToGW(node, packet):
                 # print("This is the node to send to next:", recNode.id) ##DEBUG
                 packet.linkBudget = packet.RXsensi - node.TXpower
                 node.sendPacket(recNode, packet)
+                #print("Battery of node:", node.battery, " ", node.id)
 
                 if isinstance(recNode, myNode):
                     recNode.addCADTime(packet)
@@ -634,8 +643,8 @@ def beaconFromGW(GW):
         return 0
 
 def beaconFromNode(sendNode):
-    print("Sending beacon from node", sendNode.id,
-         "NoH:", sendNode.numberOfHops)  ##DEBUG
+    # print("Sending beacon from node", sendNode.id,
+    #      "NoH:", sendNode.numberOfHops)  ##DEBUG
 
     """go through all nodes"""
     for recNode in nodes:
@@ -656,11 +665,11 @@ def beaconFromNode(sendNode):
 
                 if bestconNode.id == sendNode.id or sendNode.isInConnections(bestconNode):
                     """sendNode has best connection or is node with least hops -> send to recNode"""
-                    print("Looking at node", recNode.id) ##DEBUG
-                    if sendNode.isInConnections(bestconNode):
-                        print("\tNot best connection with this node, but less hops")
-                    else:
-                        print("\tBest connection with this node")                      ##DEBUG
+                    # print("Looking at node", recNode.id) ##DEBUG
+                    # if sendNode.isInConnections(bestconNode):
+                    #     print("\tNot best connection with this node, but less hops")
+                    # else:
+                    #     print("\tBest connection with this node")                      ##DEBUG
 
                     if bestconNode not in sendNode.connectionList:
                         """add connections to connection lists of nodes
@@ -785,18 +794,14 @@ def setup(reset):
         for node in nodes:
             if node.traffic() > 4:
                 node.overflow = True
-                print("overflow!")
             else:
                 node.overflow = False
 
             node.reroute()
 
+        for node in nodes:
             if node.traffic() > 4:
-                node.overflow = True
-            else:
-                node.overflow = False
-
-            if node.overflow:
+                print("Overflow!!")
                 node.graphic = plt.Circle((node.x, node.y), size, fill=True, color='red')
             else:
                 node.graphic = plt.Circle((node.x, node.y), size, fill=True, color='blue')
@@ -817,8 +822,8 @@ axsendtillempty = plt.axes([0.36, 0.9, 0.2, 0.075])
 
 """parameters for plot and node size
    width and height is in meters."""
-width = 40000
-height = 40000
+width = 30000
+height = 30000
 size = width / 250
 
 """1 to show nodes in plot"""
@@ -836,9 +841,9 @@ DR = [250, 440, 980, 1790, 3125, 5470, 11000]
 SNRvals = [-7.5, -10, -12.5, -15, -17.5, -20]
 
 """Transmit consumption in mA from -2 to +20 dBm"""
-TX = [22, 22, 22, 23,                                       # RFO/PA0: -2..1
-      24, 24, 24, 25, 25, 25, 25, 26, 31, 32, 34, 35, 44,   # PA_BOOST/PA1: 2..14
-      82, 85, 90,                                           # PA_BOOST/PA1: 15..17
+TX = [22, 22, 22, 23,                                       # RFO/PA0:          -2..1
+      24, 24, 24, 25, 25, 25, 25, 26, 31, 32, 34, 35, 44,   # PA_BOOST/PA1:     2..14
+      82, 85, 90,                                           # PA_BOOST/PA1:     15..17
       105, 115, 125]                                        # PA_BOOST/PA1+PA2: 18..20
 
 """current draw in A for receiver mode, band 1, BW = 125, SX1276"""
@@ -864,7 +869,7 @@ if len(sys.argv) >= 7:
     print("TX power: \t\t",         TXpowerArg)
     print("Spreading factor: \t", spreadingFactorArg)
     print("Battery capacity: \t", batteryCapacityArg)
-    print("Packet size: \t\t",      packetSizeArg)
+    print("Packet size: \t\t",    packetSizeArg)
     print("Period: \t\t",           periodArg)
 else:
     print("usage: ./LoRaSimSODAQ.py <numberOfNodes> <TXpower> <spreadingFactor> <batteryCapacity> <packetSize> <period>")
