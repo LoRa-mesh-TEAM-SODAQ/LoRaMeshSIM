@@ -143,20 +143,20 @@ class myNode(object):
         print("id:", self.id)
         print("Node NoH:", self.numberOfHops)
         # print("Out of range:", self.outOfRange)
-        # print("Total time on air: {:.2f}".format(self.totalTOA), "s")
-        # print("Time spent receiving: {:.2f}".format(self.totalTR), "s")
-        # print("Time spent sleeping: {:.2f}".format(self.totalSleepTime), "s")
-        # print("Time spent CAD: {:.2f}".format(self.totalCADTime), "s")
+        print("Total time on air: {:.2f}".format(self.totalTOA), "s")
+        print("Time spent receiving: {:.2f}".format(self.totalTR), "s")
+        print("Time spent sleeping: {:.2f}".format(self.totalSleepTime), "s")
+        print("Time spent CAD: {:.2f}".format(self.totalCADTime), "s")
         # print("Energy used: {:.2f}".format((1000 * self.energyUsed) / V), "mAh")
         # print("Battery left: {:.2f}".format((1000 * self.battery) / V), "mAh")
         print("{:.2f}".format(days), "days")
         print("Traffic:",self.traffic(), "nodes behind")
         print("Sent packets:",self.sent)
         print("received packets:",self.received)
-        print("Connections of node:")
-        for i in self.connectionList:
-            print("Node:", i.get('Node_Gateway').id, "RSSI: {:.2f}".format(i.get('RSSI')), "dBm,", "distance: {:.2f}".format(i.get('dist')), "m")
-        self.possibleConnections()                               ##DEBUG
+        # print("Connections of node:")
+        # for i in self.connectionList:
+        #     print("Node:", i.get('Node_Gateway').id, "RSSI: {:.2f}".format(i.get('RSSI')), "dBm,", "distance: {:.2f}".format(i.get('dist')), "m")
+        # self.possibleConnections()                               ##DEBUG
         print()
 
     def addPacket(self, packet):
@@ -262,6 +262,9 @@ class myNode(object):
                             amount = amount + 1
                         else:
                             amount = amount + 1
+
+        if amount > 4:
+            self.overflow = True
         return amount
 
     def reroute(self):
@@ -319,8 +322,8 @@ class myNode(object):
         Send every ... minutes. Can make the lifetime
         of the nodes significantly higher.
         """
-        # minutes = 15
-        # sleepTime = minutes * 60
+        minutes = 15
+        sleepTime = minutes * 60
         """
         send as many times as you can, keeping in mind the 0,01
         duty cycle for lora, but not the maximum uplink time for
@@ -328,7 +331,7 @@ class myNode(object):
         source:
         https://www.thethingsnetwork.org/forum/t/limitations-data-rate-packet-size-30-seconds-uplink-and-10-messages-downlink-per-day-fair-access-policy-guidelines/1300
         """
-        sleepTime = (packet.TOA / 0.01) - packet.TOA
+        # sleepTime = (packet.TOA / 0.01) - packet.TOA
         sleepPower = ((sleepModeCurrent * V) * sleepTime) * 0.000278
         self.totalSleepTime += sleepTime
         self.energyUsed += sleepPower
@@ -507,6 +510,14 @@ class Index(object):
       returns:
       None"""
     def reset(self, event):
+        print("Resetting plot...")
+        nodes.clear()
+
+        GW = myGateway("G0", 868, width / 4, height / 4)
+
+        setup(True)
+
+    def resetUntill(self):
         print("Resetting plot...")
         nodes.clear()
 
@@ -791,26 +802,32 @@ def setup(reset):
         print("Succesfully sent beacon")
         beaconFromNodes()
 
-        for node in nodes:
-            if node.traffic() > 4:
-                node.overflow = True
-            else:
-                node.overflow = False
 
+
+        for node in nodes:
+            node.traffic()
             node.reroute()
 
+        mostTraffic = 0
         for node in nodes:
-            if node.traffic() > 4:
+            traffic = node.traffic()
+            if traffic > mostTraffic:
+                mostTraffic = traffic
+            if node.overflow:
                 print("Overflow!!")
                 node.graphic = plt.Circle((node.x, node.y), size, fill=True, color='red')
             else:
                 node.graphic = plt.Circle((node.x, node.y), size, fill=True, color='blue')
 
+        if untilTrafficIsArg != 0 and\
+           mostTraffic != untilTrafficIsArg:
+            callback.resetUntill()
+
         if reset:
             showPlot(True)
         else:
             showPlot(False)
-        print("\n")
+            # print("\n")
     else:
         sys.exit(-1)
 
@@ -864,6 +881,7 @@ if len(sys.argv) >= 7:
     batteryCapacityArg  = int(sys.argv[4])
     packetSizeArg       = int(sys.argv[5])
     periodArg           = int(sys.argv[6])
+    untilTrafficIsArg   = int(sys.argv[7])
 
     print("Number of nodes: \t",  nrNodesArg)
     print("TX power: \t\t",         TXpowerArg)
@@ -871,8 +889,9 @@ if len(sys.argv) >= 7:
     print("Battery capacity: \t", batteryCapacityArg)
     print("Packet size: \t\t",    packetSizeArg)
     print("Period: \t\t",           periodArg)
+    print("Setup untill: \t\t",     untilTrafficIsArg)
 else:
-    print("usage: ./LoRaSimSODAQ.py <numberOfNodes> <TXpower> <spreadingFactor> <batteryCapacity> <packetSize> <period>")
+    print("usage: ./LoRaSimSODAQ.py <numberOfNodes> <TXpower> <spreadingFactor> <batteryCapacity> <packetSize> <period> <setupUntilTrafficIs>")
     sys.exit(-1)
 
 """start with making a new gateway"""
