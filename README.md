@@ -48,6 +48,4 @@ There are 3 buttons in the simulation:
 
 The nodes and gateway inside the plot can be clicked on to show some information
 about them in the console.
-
-
 ![](Doc/Simulatie flowchart.png)
