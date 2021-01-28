@@ -55,6 +55,10 @@ There are 3 buttons in the simulation:
 
 The nodes and gateway inside the plot can be clicked on to show some information
 about them in the console.
+<<<<<<< HEAD
 
 #### Flowchart
 ![](Doc/SimulationFlowchart.png)
+=======
+![](Doc/Simulatie flowchart.png)
+>>>>>>> 216654116f502d8d7a4d3eefd2dd56a9b0ade91d
