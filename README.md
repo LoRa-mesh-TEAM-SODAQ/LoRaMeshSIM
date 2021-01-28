@@ -15,7 +15,7 @@ mesh topology and amount of throughput.
 ## Installation:
 Firstly make sure required packages are installed by executing following line
 in a command prompt, while in the directory of simulation file:
-pip install -r requirements.txt
+'''pip install -r requirements.txt'''
 
 ## Usage:
 python3 ./LoRaSimSODAQ.py <numberOfNodes> <TXpower> <spreadingFactor> <batteryCapacity> <packetSize> <period> <setupUntilTrafficIs>
