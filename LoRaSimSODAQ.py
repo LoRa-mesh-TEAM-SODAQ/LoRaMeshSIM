@@ -12,7 +12,7 @@ A LoRa mesh simulation program, commissioned by SODAQ. This program is made in
 order to evaluate the power consumption network architecture, extra range with
 mesh topology and amount of throughput.
 
-INSTALLING:
+INSTALLATION:
 Firstly make sure required packages are installed by executing following line
 in a command prompt, while in the directory of simulation file:
 pip install -r requirements.txt

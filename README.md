@@ -5,15 +5,22 @@ A LoRa mesh simulation program, commissioned by SODAQ. This program is made in
 order to evaluate the power consumption network architecture, extra range with
 mesh topology and amount of throughput.
 
-INSTALLING:
+## Table of contents
+* [Installation](#Installation)
+* [Usage](#Usage)
+* [Arguments](#Arguments)
+* [Interactivity](#Interactivity)
+* [Flowchart](#Flowchart)
+
+### Installation:
 Firstly make sure required packages are installed by executing following line
 in a command prompt, while in the directory of simulation file:
 pip install -r requirements.txt
 
-USAGE:
+### Usage:
 python3 ./LoRaSimSODAQ.py <numberOfNodes> <TXpower> <spreadingFactor> <batteryCapacity> <packetSize> <period> <setupUntilTrafficIs>
 
-ARGUMENTS:
+### Arguments:
     numberOfNodes
         - Input any number of nodes to be simulated.
     TXpower
@@ -35,7 +42,7 @@ ARGUMENTS:
           one of the nodes' traffic is equal to this value.
           If left 0 setup will be done just once.
 
-INTERACTIVITY:
+### Interactivity:
 There are 3 buttons in the simulation:
     - Send untill empty
       when pressed: Packets will be assigned to random nodes and forwarded to
@@ -49,5 +56,5 @@ There are 3 buttons in the simulation:
 The nodes and gateway inside the plot can be clicked on to show some information
 about them in the console.
 
-
-![](Doc/Simulatie flowchart.png)
+#### Flowchart
+![](Doc/SimulationFlowchart.png)
