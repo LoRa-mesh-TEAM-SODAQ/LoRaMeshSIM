@@ -18,7 +18,7 @@ in a command prompt, while in the directory of simulation file:
 `pip install -r requirements.txt`
 
 ## Usage:
-python3 ./LoRaSimSODAQ.py <numberOfNodes> <TXpower> <spreadingFactor> <batteryCapacity> <packetSize> <period> <setupUntilTrafficIs>
+`python3 ./LoRaSimSODAQ.py <numberOfNodes> <TXpower> <spreadingFactor> <batteryCapacity> <packetSize> <period> <setupUntilTrafficIs>`
 
 ## Arguments:
 #### numberOfNodes
