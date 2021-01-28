@@ -43,22 +43,19 @@ python3 ./LoRaSimSODAQ.py <numberOfNodes> <TXpower> <spreadingFactor> <batteryCa
           If left 0 setup will be done just once.
 
 ### Interactivity:
-There are 3 buttons in the simulation:
-    - Send untill empty
-      when pressed: Packets will be assigned to random nodes and forwarded to
-                    the gateway until one of the nodes is empty.
-    - Reset
-      when pressed: Resets whole program and shows new plot.
-    - Random packet
-      when pressed: Packet will be assigned to random node and forwarded to
-                    the gateway.
+    There are 3 buttons in the simulation:
+        - Send untill empty
+          when pressed: Packets will be assigned to random nodes and forwarded to
+                        the gateway until one of the nodes is empty.
+        - Reset
+          when pressed: Resets whole program and shows new plot.
+        - Random packet
+          when pressed: Packet will be assigned to random node and forwarded to
+                        the gateway.
 
 The nodes and gateway inside the plot can be clicked on to show some information
 about them in the console.
-<<<<<<< HEAD
 
 #### Flowchart
 ![](Doc/SimulationFlowchart.png)
-=======
-![](Doc/Simulatie flowchart.png)
->>>>>>> 216654116f502d8d7a4d3eefd2dd56a9b0ade91d
+
