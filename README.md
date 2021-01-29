@@ -11,6 +11,7 @@ mesh topology and amount of throughput.
 * [Arguments](#Arguments)
 * [Interactivity](#Interactivity)
 * [Flowchart](#Flowchart)
+* [Copyright](#Copyright)
 
 ## Installation:
 Firstly make sure required packages are installed by executing following line
