@@ -56,6 +56,26 @@ There are 3 buttons in the simulation:
 The nodes and gateway inside the plot can be clicked on to show some information
 about them in the console.
 %==============================================================================%
+
+Copyright (c) 2021 S.E.C. Vergouwen
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
 """
 
 import random
@@ -130,7 +150,7 @@ def checkSignal(recNode):
 # checks if the receiving node is in range of any of the nodes that have
 # received a beacon.
 # Params:   myNode object
-# returns:  boolean"""
+# returns:  boolean
 def checkOutOfRange(recNode):
     outOfRange = False
     highestRSSI = checkSignal(recNode)
@@ -194,8 +214,8 @@ class myNode(object):
         print("Time spent receiving: {:.2f}".format(self.totalTR), "s")
         print("Time spent sleeping: {:.2f}".format(self.totalSleepTime), "s")
         print("Time spent CAD: {:.2f}".format(self.totalCADTime), "s")
-        # print("Energy used: {:.2f}".format((1000 * self.energyUsed) / V), "mAh")
-        # print("Battery left: {:.2f}".format((1000 * self.battery) / V), "mAh")
+        print("Energy used: {:.2f}".format((1000 * self.energyUsed) / V), "mAh")
+        print("Battery left: {:.2f}".format((1000 * self.battery) / V), "mAh")
         print("{:.2f}".format(days), "days")
         print("Traffic:",self.traffic(), "nodes behind")
         print("Sent packets:",self.sent)
@@ -367,7 +387,7 @@ class myNode(object):
                         else:
                             amount = amount + 1
 
-        if amount > 4:
+        if amount > maxTraffic:
             self.overflow = True
         return amount
 
@@ -735,8 +755,7 @@ class Index(object):
             # for i in randNode.connectionList:
                 # print("Node:", i.get('Node_Gateway').id, "RSSI:",
                       # i.get('RSSI'), "distance:", i.get('dist'))
-            print("Sending packet from node {:d}...".format(randNode.id))
-            print(event.get_data())
+            #print("Sending packet from node {:d}...".format(randNode.id))##DEBUG
             self.sendToGW(randNode, packet)
         else:
             # print("randNode", randNode.id, "has no node to send to")   ##DEBUG
@@ -1079,6 +1098,8 @@ V = 3.3                                                     # voltage XXX
 """air attenuation for decreasing signal strength based on distance"""
 airAttenuation = 0.003
 
+maxTraffic = 4
+
 """get arguments"""
 if len(sys.argv) >= 7:
     nrNodesArg          = int(sys.argv[1])
@@ -1095,9 +1116,9 @@ if len(sys.argv) >= 7:
     print("Battery capacity: \t", batteryCapacityArg)
     print("Packet size: \t\t",    packetSizeArg)
     print("Period: \t\t",           periodArg)
-    print("Setup until traffic is: \t",     untilTrafficIsArg)
+    print("Setup until traffic is: ",     untilTrafficIsArg)
 else:
-    print("usage: ./LoRaSimSODAQ.py <numberOfNodes> <TXpower> <spreadingFactor> <batteryCapacity> <packetSize> <period> <setupUntilTrafficIs>")
+    print("Usage: ./LoRaSimSODAQ.py <numberOfNodes> <TXpower> <spreadingFactor> <batteryCapacity> <packetSize> <period> <setupUntilTrafficIs>")
     sys.exit(-1)
 
 """start with making a new gateway"""
