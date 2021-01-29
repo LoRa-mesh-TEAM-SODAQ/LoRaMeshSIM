@@ -11,7 +11,7 @@ mesh topology and amount of throughput.
 * [Arguments](#Arguments)
 * [Interactivity](#Interactivity)
 * [Flowchart](#Flowchart)
-* [Copyright](#Copyright)
+* [Licensing](#Licensing)
 
 ## Installation:
 Firstly make sure required packages are installed by executing following line
@@ -60,7 +60,8 @@ about them in the console.
 ## Flowchart
 ![](Doc/SimulationFlowchart.png)
 
-#####Copyright (c) 2021 S.E.C. Vergouwen
+#####Licensing
+Copyright (c) 2021 S.E.C. Vergouwen
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal
